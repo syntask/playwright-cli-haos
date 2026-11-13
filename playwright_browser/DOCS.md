@@ -12,16 +12,18 @@ Browser profiles and the named-session registry are saved under the app's `/data
 
 - `GET /health` — unauthenticated container health check.
 - `GET /api/v1/sessions` — Playwright CLI session list.
-- `GET /api/v1/events?after=<id>` — recent command events.
+- `GET /api/v1/events?after=<id>&limit=<n>&instance_id=<uuid>` — paginated command and browser lifecycle/page events. Pass back both `sequence` and `instance_id` to continue reading across app restarts.
+- `GET /api/v1/artifact?path=<relative-path>` — retrieve a CLI artifact as base64 JSON.
 - `POST /api/v1/command` — run a CLI command with JSON `{ "session": "default", "command": "open", "arguments": ["https://example.com"] }`.
 - `GET /api/v1/events/ws` — authenticated WebSocket command event stream.
 
-All API routes except `/health` require `Authorization: Bearer <token>`. Requests invoke `playwright-cli` without a shell. The HA integration contributes `playwright_browser__command` to the **Device control** API, registers the `playwright_browser.run_command` action, and exposes a command event entity.
+All API routes except `/health` require `Authorization: Bearer <token>`. Requests invoke `playwright-cli` without a shell. The HA integration contributes command and event tools to the **Device control** API, registers the `playwright_browser.run_command` and `playwright_browser.get_artifact` actions, creates a status device for each active session, and exposes a browser event entity.
 
 Example automation action:
 
 ```yaml
 action: playwright_browser.run_command
+response_variable: cli_result
 data:
   session: kitchen
   command: open
@@ -29,6 +31,10 @@ data:
     - https://example.com
 ```
 
+The optional `cli_result` response variable contains the CLI's `ok`, `stdout`, and `stderr` fields. For screenshot retrieval, read the generated `.playwright-cli/...` path from `stdout`, then call `playwright_browser.get_artifact` with that path and a response variable.
+
 ## Event coverage
 
-The initial implementation emits command-started, command-completed, and command-failed events with bounded command output. It does **not yet** stream spontaneous browser `console`, request, response, dialog, or navigation events; those remain accessible through the relevant Playwright CLI commands and are a follow-up integration feature.
+The app discovers active sessions every few seconds, then attaches a loopback-only CDP observer to Chromium. It emits Playwright page/context lifecycle, frame, console/web-error, request/response, navigation, popup, dialog, download, file-chooser, worker, and WebSocket events. WebSocket event payloads are not recorded; only direction and byte count are exposed. Command-started, command-completed, and command-failed events are emitted immediately. New session discovery may take up to a few seconds; once attached, browser events are streamed immediately. Event output may contain page text and URLs, so treat it as sensitive. The debugging endpoint is bound to the container's loopback interface and is not exposed through the app API.
+
+Screenshots and other CLI output files under `.playwright-cli/` can be fetched through the authenticated artifact endpoint or the `playwright_browser.get_artifact` response service. The API rejects paths outside that directory and files larger than 20 MiB.

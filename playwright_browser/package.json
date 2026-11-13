@@ -2,6 +2,11 @@
   "name": "playwright-ha-app",
   "version": "0.1.0",
   "private": true,
+  "author": "Syntask",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/syntask/playwright-ha-app.git"
+  },
   "type": "module",
   "scripts": {
     "start": "node src/server.js",

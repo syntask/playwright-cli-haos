@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from typing import Any
+from urllib.parse import quote
 
 from aiohttp import ClientError, ClientSession, ClientTimeout
 
@@ -47,8 +48,17 @@ class PlaywrightApi:
     async def sessions(self) -> dict[str, Any]:
         return await self._request("GET", "/api/v1/sessions")
 
-    async def events(self, after: int = 0) -> dict[str, Any]:
-        return await self._request("GET", f"/api/v1/events?after={after}")
+    async def events(
+        self, after: int = 0, limit: int = 100, instance_id: str | None = None
+    ) -> dict[str, Any]:
+        query = f"after={after}&limit={limit}"
+        if instance_id:
+            query += f"&instance_id={quote(instance_id, safe='')}"
+        return await self._request("GET", f"/api/v1/events?{query}")
+
+    async def artifact(self, path: str) -> dict[str, Any]:
+        """Fetch an artifact from the app's restricted output directory."""
+        return await self._request("GET", f"/api/v1/artifact?path={quote(path, safe='')}")
 
     async def health(self) -> dict[str, Any]:
         return await self._request("GET", "/health")

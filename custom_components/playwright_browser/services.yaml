@@ -22,3 +22,14 @@ run_command:
       required: false
       example:
         - https://example.com
+get_artifact:
+  name: Get CLI artifact
+  description: Read a screenshot, snapshot, trace, or other file from the app artifact directory.
+  fields:
+    path:
+      name: Artifact path
+      description: Relative path reported by the CLI, for example .playwright-cli/screenshot.png.
+      required: true
+      example: .playwright-cli/screenshot.png
+      selector:
+        text:

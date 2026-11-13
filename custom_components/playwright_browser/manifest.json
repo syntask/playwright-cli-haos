@@ -1,9 +1,9 @@
 {
   "domain": "playwright_browser",
   "name": "Playwright Browser",
-  "codeowners": [],
+  "codeowners": ["@syntask"],
   "config_flow": true,
-  "documentation": "https://github.com/REPLACE_WITH_GITHUB_OWNER/playwright-ha-app",
+  "documentation": "https://github.com/syntask/playwright-ha-app",
   "iot_class": "local_poll",
   "requirements": [],
   "version": "0.1.0"

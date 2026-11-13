@@ -2,16 +2,30 @@
 
 A Home Assistant app that bundles Microsoft's `playwright-cli` and Chromium, plus a custom integration that exposes browser automation to Home Assistant automations and the Device control API.
 
-> **Early development:** this repository is a first runnable scaffold. Browser command results are exposed immediately; native browser lifecycle/console/network events and a polished session-management UI are still future work.
+> **Early development:** full CLI command control, persistent profiles, browser event capture, and artifact retrieval are implemented. A polished session-management UI is still future work.
 
 ## Repository layout
 
 - `playwright_browser/` — Home Assistant app package and Node.js API.
 - `custom_components/playwright_browser/` — Home Assistant custom integration.
 
-The app and integration are separate Home Assistant installations. Add the app repository to the app store, install the app, then copy `custom_components/playwright_browser` into your HA configuration's `custom_components` directory (or install it through HACS once a release is published). Restart Home Assistant and add the **Playwright Browser** integration.
+The app and integration are separate Home Assistant installations. Add this repository to the app store and install the app. Install the integration through HACS as a custom integration, or copy `custom_components/playwright_browser` into your HA configuration's `custom_components` directory. Restart Home Assistant and add the **Playwright Browser** integration.
 
-Before publishing, replace `REPLACE_WITH_GITHUB_OWNER` in `repository.yaml`, `playwright_browser/config.yaml`, and the integration manifest with the lowercase GitHub owner. The included GitHub Actions workflow publishes architecture-specific GHCR images on `v*` tags; the app's image path must match the repository owner.
+The app repository and GHCR image paths are configured for `syntask/playwright-ha-app`. Build and publish the architecture-specific images manually:
+
+```sh
+docker login ghcr.io --username syntask
+docker buildx build --platform linux/amd64 \
+  -t ghcr.io/syntask/playwright-ha-app-amd64:latest \
+  -t ghcr.io/syntask/playwright-ha-app-amd64:0.1.0 \
+  --push ./playwright_browser
+docker buildx build --platform linux/arm64 \
+  -t ghcr.io/syntask/playwright-ha-app-aarch64:latest \
+  -t ghcr.io/syntask/playwright-ha-app-aarch64:0.1.0 \
+  --push ./playwright_browser
+```
+
+Use a GitHub token with package write access for `docker login`. After the first push, make both GHCR packages public so Home Assistant can pull them. Bump the image tags and `playwright_browser/config.yaml` version when releasing a new version.
 
 ## Development
 

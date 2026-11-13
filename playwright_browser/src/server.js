@@ -1,7 +1,10 @@
-import { timingSafeEqual } from "node:crypto";
+import { randomUUID, timingSafeEqual } from "node:crypto";
 import { createServer } from "node:http";
 import { readFileSync } from "node:fs";
+import { readFile, realpath, stat } from "node:fs/promises";
+import { extname, isAbsolute, relative, resolve } from "node:path";
 import { URL } from "node:url";
+import { chromium } from "playwright";
 import { WebSocketServer } from "ws";
 import { runCli, validateCommandRequest } from "./command.js";
 import { loadSessions, updateSession } from "./session-store.js";
@@ -15,12 +18,21 @@ try {
 }
 const TOKEN = process.env.PLAYWRIGHT_API_TOKEN || appOptions.api_token || "";
 const DATA_DIR = process.env.HOME || "/data";
+const ARTIFACT_DIR = resolve(DATA_DIR, ".playwright-cli");
+const DAEMON_DIR = resolve(DATA_DIR, ".cache/ms-playwright/daemon");
 const MAX_BODY_BYTES = 64 * 1024;
+const MAX_ARTIFACT_BYTES = 20 * 1024 * 1024;
 const EVENT_LIMIT = 200;
+const EVENT_POLL_INTERVAL_MS = 3000;
+const INSTANCE_ID = randomUUID();
 const events = [];
 const sockets = new Set();
 const commandLocks = new Map();
+const browserMonitors = new Map();
+const monitorWarnings = new Map();
 let sequence = 0;
+let eventPollTimer;
+let eventPollRunning = false;
 
 if (TOKEN.length < 32) {
   console.error("Configure an API token with at least 32 characters; refusing to start");
@@ -56,7 +68,10 @@ async function readJson(request) {
 }
 
 function publish(event) {
-  const entry = { id: ++sequence, timestamp: new Date().toISOString(), ...event };
+  const boundedEvent = Object.fromEntries(
+    Object.entries(event).map(([key, value]) => [key, typeof value === "string" ? value.slice(0, 8192) : value]),
+  );
+  const entry = { id: ++sequence, instance_id: INSTANCE_ID, timestamp: new Date().toISOString(), ...boundedEvent };
   events.push(entry);
   if (events.length > EVENT_LIMIT) events.shift();
   const message = JSON.stringify({ type: "playwright_event", event: entry });
@@ -64,6 +79,228 @@ function publish(event) {
     if (socket.readyState === 1) socket.send(message);
   }
   return entry;
+}
+
+function parseCliOutput(stdout) {
+  try {
+    return JSON.parse(stdout);
+  } catch {
+    return stdout;
+  }
+}
+
+function pageEvent(session, type, detail = {}) {
+  publish({ type, session, ...detail });
+}
+
+function observePage(session, page, monitor) {
+  if (monitor.pages.has(page)) return;
+  monitor.pages.add(page);
+  pageEvent(session, "page_opened", { url: page.url() });
+
+  page.on("console", (message) => {
+    const location = message.location();
+    pageEvent(session, "console_message", {
+      level: message.type(),
+      message: message.text(),
+      url: location.url,
+      line: location.lineNumber,
+      column: location.columnNumber,
+    });
+  });
+  page.on("pageerror", (error) => pageEvent(session, "page_error", { message: error.message }));
+  page.on("request", (request) =>
+    pageEvent(session, "network_request", {
+      method: request.method(),
+      url: request.url(),
+      resource_type: request.resourceType(),
+      navigation: request.isNavigationRequest(),
+    }),
+  );
+  page.on("response", (response) =>
+    pageEvent(session, "network_response", {
+      method: response.request().method(),
+      url: response.url(),
+      status: response.status(),
+      status_text: response.statusText(),
+    }),
+  );
+  page.on("requestfailed", (request) =>
+    pageEvent(session, "network_request_failed", {
+      method: request.method(),
+      url: request.url(),
+      error: request.failure()?.errorText,
+    }),
+  );
+  page.on("framenavigated", (frame) =>
+    pageEvent(session, "navigation", { url: frame.url(), main_frame: frame === page.mainFrame() }),
+  );
+  page.on("frameattached", (frame) => pageEvent(session, "frame_attached", { url: frame.url() }));
+  page.on("framedetached", (frame) => pageEvent(session, "frame_detached", { url: frame.url() }));
+  page.on("domcontentloaded", () => pageEvent(session, "dom_content_loaded", { url: page.url() }));
+  page.on("load", () => pageEvent(session, "page_load", { url: page.url() }));
+  page.on("requestfinished", (request) =>
+    pageEvent(session, "network_request_finished", {
+      method: request.method(),
+      url: request.url(),
+      resource_type: request.resourceType(),
+    }),
+  );
+  page.on("dialog", (dialog) =>
+    pageEvent(session, "dialog", { dialog_type: dialog.type(), message: dialog.message(), default_value: dialog.defaultValue() }),
+  );
+  page.on("download", (download) =>
+    pageEvent(session, "download", { url: download.url(), filename: download.suggestedFilename() }),
+  );
+  page.on("filechooser", (chooser) => pageEvent(session, "file_chooser", { multiple: chooser.isMultiple() }));
+  page.on("popup", (popup) => {
+    pageEvent(session, "popup_opened", { url: popup.url(), opener_url: page.url() });
+    observePage(session, popup, monitor);
+  });
+  page.on("close", () => pageEvent(session, "page_closed", { url: page.url() }));
+  page.on("crash", () => pageEvent(session, "page_crash", { url: page.url() }));
+  page.on("worker", (worker) => pageEvent(session, "worker_created", { url: worker.url() }));
+  page.on("websocket", (websocket) => {
+    pageEvent(session, "websocket_opened", { url: websocket.url() });
+    websocket.on("framesent", (payload) =>
+      pageEvent(session, "websocket_frame", {
+        url: websocket.url(),
+        direction: "sent",
+        bytes: Buffer.isBuffer(payload) ? payload.length : Buffer.byteLength(payload),
+      }),
+    );
+    websocket.on("framereceived", (payload) =>
+      pageEvent(session, "websocket_frame", {
+        url: websocket.url(),
+        direction: "received",
+        bytes: Buffer.isBuffer(payload) ? payload.length : Buffer.byteLength(payload),
+      }),
+    );
+    websocket.on("close", () => pageEvent(session, "websocket_closed", { url: websocket.url() }));
+  });
+}
+
+async function connectBrowserMonitor(browserInfo) {
+  const session = browserInfo.name;
+  const existing = browserMonitors.get(session);
+  if (existing?.browser.isConnected()) return;
+
+  const daemonRoot = await realpath(DAEMON_DIR);
+  const userDataDir = await realpath(browserInfo.userDataDir);
+  const relativeProfilePath = relative(daemonRoot, userDataDir);
+  if (
+    !relativeProfilePath ||
+    relativeProfilePath === ".." ||
+    relativeProfilePath.startsWith(`..${process.platform === "win32" ? "\\" : "/"}`) ||
+    isAbsolute(relativeProfilePath)
+  ) {
+    throw new Error("CLI reported a browser profile outside its data directory");
+  }
+  const portContents = await readFile(resolve(userDataDir, "DevToolsActivePort"), "utf8");
+  const port = Number.parseInt(portContents.split(/\r?\n/, 1)[0], 10);
+  if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error("Invalid Chromium DevTools port");
+
+  const browser = await chromium.connectOverCDP(`http://127.0.0.1:${port}`, { timeout: 5000 });
+  const context = browser.contexts()[0];
+  if (!context) throw new Error("Chromium has no browser context to observe");
+  const monitor = { browser, context, pages: new WeakSet(), userDataDir };
+  browserMonitors.set(session, monitor);
+  context.on("page", (page) => observePage(session, page, monitor));
+  context.on("close", () => pageEvent(session, "browser_context_closed"));
+  context.on("serviceworker", (worker) => pageEvent(session, "service_worker_created", { url: worker.url() }));
+  context.on("weberror", (webError) => pageEvent(session, "web_error", { message: webError.error().message }));
+  browser.on("disconnected", () => {
+    if (browserMonitors.get(session) === monitor) browserMonitors.delete(session);
+    pageEvent(session, "browser_disconnected");
+  });
+  for (const page of context.pages()) observePage(session, page, monitor);
+  pageEvent(session, "browser_connected", { browser_type: browserInfo.browserType });
+  monitorWarnings.delete(session);
+}
+
+async function attachSessionMonitor(session) {
+  const listingResult = await runCli({ command: "list", arguments: [] });
+  if (!listingResult.ok) return;
+  const listing = parseCliOutput(listingResult.stdout);
+  const browserInfo = listing?.browsers?.find((browser) => browser.name === session && browser.status === "open");
+  if (browserInfo) await connectBrowserMonitor(browserInfo);
+}
+
+async function pollBrowserEvents() {
+  if (eventPollRunning || shuttingDown) return;
+  eventPollRunning = true;
+  try {
+    await withSessionLock("__all_sessions__", async () => {
+      const listResult = await runCli({ command: "list", arguments: [] });
+      if (!listResult.ok) return;
+      const listing = parseCliOutput(listResult.stdout);
+      const browsers = Array.isArray(listing?.browsers) ? listing.browsers : [];
+      for (const browser of browsers.filter((item) => item.status === "open")) {
+        try {
+          await connectBrowserMonitor(browser);
+        } catch (error) {
+          const lastWarning = monitorWarnings.get(browser.name) || 0;
+          if (Date.now() - lastWarning > 30_000) {
+            console.warn(`Could not attach event monitor for ${browser.name}: ${error.message}`);
+            monitorWarnings.set(browser.name, Date.now());
+          }
+        }
+      }
+    });
+  } catch (error) {
+    console.warn(`Browser event poll failed: ${error.message}`);
+  } finally {
+    eventPollRunning = false;
+    if (!shuttingDown) eventPollTimer = setTimeout(pollBrowserEvents, EVENT_POLL_INTERVAL_MS);
+  }
+}
+
+function artifactContentType(filePath) {
+  return ({
+    ".png": "image/png",
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".webp": "image/webp",
+    ".pdf": "application/pdf",
+    ".json": "application/json",
+    ".yml": "text/yaml",
+    ".yaml": "text/yaml",
+    ".html": "text/html",
+    ".txt": "text/plain",
+    ".webm": "video/webm",
+  })[extname(filePath).toLowerCase()] || "application/octet-stream";
+}
+
+async function readArtifact(filePath) {
+  if (typeof filePath !== "string" || !filePath || filePath.length > 2048 || isAbsolute(filePath)) {
+    throw Object.assign(new TypeError("path must be a relative artifact path"), { status: 400 });
+  }
+  const candidatePath = resolve(DATA_DIR, filePath);
+  const lexicalPath = relative(ARTIFACT_DIR, candidatePath);
+  const parentPrefix = `..${process.platform === "win32" ? "\\" : "/"}`;
+  if (!lexicalPath || lexicalPath === ".." || lexicalPath.startsWith(parentPrefix) || isAbsolute(lexicalPath)) {
+    throw Object.assign(new TypeError("path is outside the artifact directory"), { status: 403 });
+  }
+  const dataRoot = await realpath(DATA_DIR);
+  const artifactRoot = await realpath(ARTIFACT_DIR);
+  if (relative(dataRoot, artifactRoot) !== ".playwright-cli") {
+    throw Object.assign(new TypeError("artifact directory resolved outside app data"), { status: 403 });
+  }
+  const resolvedPath = await realpath(candidatePath);
+  const withinRoot = relative(artifactRoot, resolvedPath);
+  if (!withinRoot || withinRoot === ".." || withinRoot.startsWith(parentPrefix) || isAbsolute(withinRoot)) {
+    throw Object.assign(new TypeError("path is outside the artifact directory"), { status: 403 });
+  }
+  const info = await stat(resolvedPath);
+  if (!info.isFile()) throw Object.assign(new TypeError("artifact is not a regular file"), { status: 400 });
+  if (info.size > MAX_ARTIFACT_BYTES) throw Object.assign(new RangeError("artifact exceeds 20 MiB"), { status: 413 });
+  const bytes = await readFile(resolvedPath);
+  return {
+    name: withinRoot,
+    content_type: artifactContentType(resolvedPath),
+    bytes: info.size,
+    data_base64: bytes.toString("base64"),
+  };
 }
 
 async function withSessionLock(session, operation) {
@@ -89,13 +326,40 @@ const server = createServer(async (request, response) => {
   if (!authorized(request)) return send(response, 401, { error: "unauthorized" });
 
   if (request.method === "GET" && url.pathname === "/api/v1/events") {
-    const after = Number.parseInt(url.searchParams.get("after") || "0", 10);
-    return send(response, 200, { events: events.filter((event) => event.id > after), sequence });
+    let after = Number.parseInt(url.searchParams.get("after") || "0", 10);
+    const requestedInstance = url.searchParams.get("instance_id");
+    if (requestedInstance && requestedInstance !== INSTANCE_ID) after = 0;
+    const requestedLimit = Number.parseInt(url.searchParams.get("limit") || "100", 10);
+    const limit = Number.isInteger(requestedLimit) ? Math.max(1, Math.min(200, requestedLimit)) : 100;
+    if (!Number.isInteger(after) || after < 0) return send(response, 400, { error: "after must be a non-negative event id" });
+    const available = events.filter((event) => event.id > after);
+    const page = available.slice(0, limit);
+    const cursor = page.length ? page.at(-1).id : Math.max(after, sequence);
+    return send(response, 200, {
+      events: page,
+      sequence: cursor,
+      latest_sequence: sequence,
+      instance_id: INSTANCE_ID,
+      has_more: available.length > page.length,
+    });
   }
 
   if (request.method === "GET" && url.pathname === "/api/v1/sessions") {
     const result = await withSessionLock("__all_sessions__", () => runCli({ command: "list", arguments: [] }));
-    return send(response, result.ok ? 200 : 502, { ...result, sessions: result.stdout });
+    const listing = parseCliOutput(result.stdout);
+    return send(response, result.ok ? 200 : 502, {
+      ...result,
+      sessions: Array.isArray(listing?.browsers) ? listing.browsers : [],
+    });
+  }
+
+  if (request.method === "GET" && url.pathname === "/api/v1/artifact") {
+    try {
+      return send(response, 200, await readArtifact(url.searchParams.get("path")));
+    } catch (error) {
+      const status = error.status || (error.code === "ENOENT" ? 404 : 500);
+      return send(response, status, { error: error.message || "Could not read artifact" });
+    }
   }
 
   if (request.method === "POST" && url.pathname === "/api/v1/command") {
@@ -103,9 +367,28 @@ const server = createServer(async (request, response) => {
       const command = validateCommandRequest(await readJson(request));
       const { result, event } = await withSessionLock("__all_sessions__", async () => {
         publish({ type: "command_started", command: command.command, session: command.session });
-        const commandResult = await runCli(command);
+        const openUrlIndex = command.command === "open"
+          ? Math.max(
+              command.arguments.findIndex((argument) => /^(https?|data|about|file):/i.test(argument)),
+              command.arguments[0] && !command.arguments[0].startsWith("-") ? 0 : -1,
+            )
+          : -1;
+        const initialUrl = openUrlIndex >= 0 ? command.arguments[openUrlIndex] : null;
+        let commandResult = await runCli(
+          initialUrl
+            ? { ...command, arguments: command.arguments.filter((_, index) => index !== openUrlIndex) }
+            : command,
+        );
         if (commandResult.ok && command.command === "open") {
           await updateSession(DATA_DIR, command.session, true);
+          try {
+            await attachSessionMonitor(command.session);
+          } catch (error) {
+            console.warn(`Could not attach event monitor for ${command.session}: ${error.message}`);
+          }
+          if (initialUrl) {
+            commandResult = await runCli({ session: command.session, command: "goto", arguments: [initialUrl] });
+          }
         } else if (commandResult.ok && command.command === "delete-data") {
           await updateSession(DATA_DIR, command.session, false);
         }
@@ -144,12 +427,12 @@ server.on("upgrade", (request, socket, head) => {
 websocketServer.on("connection", (socket) => {
   sockets.add(socket);
   socket.on("close", () => sockets.delete(socket));
-  socket.send(JSON.stringify({ type: "ready", sequence }));
+  socket.send(JSON.stringify({ type: "ready", sequence, instance_id: INSTANCE_ID }));
 });
 
 server.listen(PORT, "0.0.0.0", () => {
   console.log(`Playwright API listening on :${PORT}`);
-  void restorePersistentSessions();
+  void restorePersistentSessions().finally(pollBrowserEvents);
 });
 
 async function restorePersistentSessions() {
@@ -171,6 +454,7 @@ let shuttingDown = false;
 function shutdown() {
   if (shuttingDown) return;
   shuttingDown = true;
+  clearTimeout(eventPollTimer);
   for (const socket of sockets) socket.close();
   const forceExit = setTimeout(() => process.exit(1), 8000);
   server.close(async () => {
