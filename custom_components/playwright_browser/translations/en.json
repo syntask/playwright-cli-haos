@@ -1,0 +1,17 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Connect to Playwright Browser",
+        "description": "Enter the app's API URL and the token configured in the app options.",
+        "data": {
+          "host": "App URL",
+          "api_token": "API token"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Cannot connect or authenticate with the app. Check the URL, token, and app logs."
+    }
+  }
+}

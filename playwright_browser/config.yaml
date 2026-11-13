@@ -1,0 +1,20 @@
+name: Playwright Browser
+version: 0.1.0
+slug: playwright_browser
+description: Control persistent Playwright CLI browser sessions from Home Assistant
+url: https://github.com/REPLACE_WITH_GITHUB_OWNER/playwright-ha-app
+arch:
+  - amd64
+  - aarch64
+startup: application
+boot: auto
+init: false
+ports:
+  8080/tcp: null
+ports_description:
+  8080/tcp: Authenticated API used by the companion Home Assistant integration (not mapped to the host)
+options:
+  api_token: ""
+schema:
+  api_token: password
+image: ghcr.io/REPLACE_WITH_GITHUB_OWNER/playwright-ha-app-{arch}

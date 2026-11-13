@@ -1,0 +1,14 @@
+{
+  "name": "playwright-ha-app",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node src/server.js",
+    "test": "node --test"
+  },
+  "dependencies": {
+    "@playwright/cli": "0.1.24",
+    "ws": "^8.18.0"
+  }
+}

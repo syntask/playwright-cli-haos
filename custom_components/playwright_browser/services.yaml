@@ -1,0 +1,24 @@
+run_command:
+  name: Run CLI command
+  description: Run a Playwright CLI command in a named persistent browser session.
+  fields:
+    session:
+      name: Session
+      description: Named browser session; defaults to default.
+      required: false
+      example: living_room
+      selector:
+        text:
+    command:
+      name: Command
+      description: Playwright CLI command, for example open, snapshot, click, fill, or screenshot.
+      required: true
+      example: open
+      selector:
+        text:
+    arguments:
+      name: Arguments
+      description: Separate command-line arguments, passed without shell interpretation.
+      required: false
+      example:
+        - https://example.com
