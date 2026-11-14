@@ -131,7 +131,7 @@ action:
 
 ## LLM tools
 
-The integration contributes tools to the Assist **Device control** API. They are not exposed through the admin LLM API.
+The integration registers a dedicated **Playwright CLI** LLM API. In a conversation agent that lets you choose tool providers, select **Playwright CLI** in the tools or LLM APIs selector. The API is not exposed through the admin LLM API.
 
 ### `playwright_cli__command`
 
@@ -165,6 +165,6 @@ The response includes `events`, `sequence`, `latest_sequence`, `instance_id`, an
 
 Browser events are best effort and only exist for sessions with a persistent profile. See [Events](events.md).
 
-## Assist configuration
+## Conversation agent configuration
 
-Tool availability is controlled by Home Assistant's Assist configuration. If you do not want an assistant to control a browser, do not expose these tools to that assistant. The command tool is marked destructive and open-world because it can change pages and contact external sites.
+Tool availability is controlled by your conversation agent's tools or LLM APIs setting. If you do not want an agent to control a browser, do not select the Playwright CLI API for that agent. The command tool is marked destructive and open-world because it can change pages and contact external sites.

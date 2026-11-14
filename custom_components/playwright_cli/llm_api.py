@@ -1,15 +1,24 @@
-"""Device control tools contributed by Playwright CLI."""
+"""LLM API and tools contributed by Playwright CLI."""
 
 from __future__ import annotations
 
 import probatio
 
-from homeassistant.components import llm
-from homeassistant.core import HomeAssistant, callback
-from homeassistant.helpers.llm import LLMContext
+from homeassistant.core import HomeAssistant
+from homeassistant.helpers import llm
 
 from .api import PlaywrightApi, PlaywrightApiError
 from .const import DOMAIN
+
+PROMPT = (
+    "Use playwright_cli__command with a complete playwright-cli command line, exactly "
+    "as you would type it in a terminal. Include the session selector when you want a named "
+    "session, for example '-s=kitchen open https://example.com', then '-s=kitchen snapshot'. "
+    "Add --json to get structured output. Use '--help' to discover commands. Use "
+    "playwright_cli__events to read command and browser events. Do not include a shell; "
+    "pipes, redirects, and command chaining are not available. Do not assume a page action "
+    "succeeded unless its result confirms it."
+)
 
 
 class PlaywrightCommandTool(llm.Tool):
@@ -40,7 +49,7 @@ class PlaywrightCommandTool(llm.Tool):
         self,
         hass: HomeAssistant,
         tool_input: llm.ToolInput,
-        llm_context: LLMContext,
+        llm_context: llm.LLMContext,
     ) -> llm.ToolResult:
         """Send a command line to the configured app."""
         del llm_context
@@ -95,7 +104,7 @@ class PlaywrightEventsTool(llm.Tool):
         self,
         hass: HomeAssistant,
         tool_input: llm.ToolInput,
-        llm_context: LLMContext,
+        llm_context: llm.LLMContext,
     ) -> llm.ToolResult:
         """Return bounded event history from the app."""
         del llm_context
@@ -117,23 +126,25 @@ class PlaywrightEventsTool(llm.Tool):
             return llm.ToolResult(data={"error": str(err)}, error=True)
 
 
-@callback
-def async_get_tools(
-    hass: HomeAssistant, llm_context: LLMContext, api_id: str
-) -> llm.LLMTools | None:
-    """Contribute the command tool to Device control, not the admin API."""
-    del hass, llm_context
-    if api_id != "assist":
-        return None
-    return llm.LLMTools(
-        tools=[PlaywrightCommandTool(), PlaywrightEventsTool()],
-        prompt=(
-            "Use playwright_cli__command with a complete playwright-cli command line, exactly "
-            "as you would type it in a terminal. Include the session selector when you want a named "
-            "session, for example '-s=kitchen open https://example.com', then '-s=kitchen snapshot'. "
-            "Add --json to get structured output. Use '--help' to discover commands. Use "
-            "playwright_cli__events to read command and browser events. Do not include a shell; "
-            "pipes, redirects, and command chaining are not available. Do not assume a page action "
-            "succeeded unless its result confirms it."
-        ),
-    )
+class PlaywrightCliAPI(llm.API):
+    """Expose Playwright CLI tools to conversation agents."""
+
+    def __init__(self, hass: HomeAssistant, name: str) -> None:
+        """Initialize the API."""
+        super().__init__(
+            hass=hass,
+            id=DOMAIN,
+            name=name,
+            requires_admin=False,
+        )
+
+    async def async_get_api_instance(
+        self, llm_context: llm.LLMContext
+    ) -> llm.APIInstance:
+        """Return the tools for this request."""
+        return llm.APIInstance(
+            api=self,
+            api_prompt=PROMPT,
+            llm_context=llm_context,
+            tools=[PlaywrightCommandTool(), PlaywrightEventsTool()],
+        )

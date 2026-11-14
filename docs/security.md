@@ -4,7 +4,7 @@ Playwright CLI controls a real browser and can execute arbitrary code. Treat acc
 
 ## Trust boundaries
 
-- Home Assistant controls who can call the action and which assistants can use the LLM tools.
+- Home Assistant controls who can call the action and which conversation agents can use the LLM tools.
 - The app API requires a bearer token for every route except `/health`.
 - The browser runs inside the app container as root with `--no-sandbox`. The sandbox flag is safe only because the process is already containerized. Do not run the same image outside a container as an untrusted user.
 - The app has no host filesystem mounts. It cannot read Home Assistant's `/config`, `/share`, or `/media` unless you add a mount.
@@ -38,7 +38,7 @@ These commands execute code in the app container:
 - `run-code`
 - `upload` of files already present in the container
 
-They are not sandboxed beyond the container itself. Only expose the command tool to assistants and users you would trust with a shell in that container.
+They are not sandboxed beyond the container itself. Only expose the command tool to conversation agents and users you would trust with a shell in that container.
 
 ## Artifacts
 
@@ -73,11 +73,12 @@ data:
 
 Removing the app with its data deletes everything under `/data`.
 
-## LLM and Assist
+## LLM tools
 
-The command tool is marked destructive and open-world. Assistant access should be deliberate:
+The command tool is marked destructive and open-world. Conversation agent access should be deliberate:
 
-- Do not expose it to assistants that accept untrusted input.
+- Only select the Playwright CLI API for conversation agents you trust.
+- Do not expose it to agents that accept untrusted input.
 - Prefer narrow, named sessions for automations.
 - Remember that page content is untrusted. A page can display instructions designed to manipulate an LLM. Do not let the model treat page text as trusted instructions.
 - Review tool calls and their results when experimenting.

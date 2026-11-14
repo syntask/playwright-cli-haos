@@ -63,6 +63,8 @@ Sessions use Playwright's `-s=<name>` selector. Omit it for the default session.
 
 Screenshots and other files are written under `/data/.playwright-cli/`. Use `playwright_cli.save_artifact` to copy one into Home Assistant's private artifact store and get a signed URL for notifications.
 
+The integration also registers a **Playwright CLI** LLM API. Select it in your conversation agent's tools or LLM APIs setting to expose `playwright_cli__command` and `playwright_cli__events`.
+
 ## API
 
 - `GET /health` — unauthenticated health check.
@@ -85,7 +87,7 @@ WebSocket frame payloads are not recorded; only direction and byte count are exp
 
 ## Security
 
-Anyone who can call the command action or LLM tool can control websites with the session's saved credentials. `eval` and `run-code` execute arbitrary code inside the app container. Do not expose the API to the public internet. Configure Assist tool exposure deliberately.
+Anyone who can call the command action or LLM tool can control websites with the session's saved credentials. `eval` and `run-code` execute arbitrary code inside the app container. Do not expose the API to the public internet. Configure conversation agent tool exposure deliberately.
 
 The browser runs as root with `--no-sandbox` inside the container. The app has no host filesystem mounts. Artifacts are stored privately and are not served through `www` or `/local`.
 

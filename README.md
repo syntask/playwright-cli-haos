@@ -2,13 +2,13 @@
 
 # Playwright CLI for Home Assistant OS
 
-Run [Microsoft Playwright CLI](https://github.com/microsoft/playwright-cli) from Home Assistant automations, scripts, and Assist.
+Run [Microsoft Playwright CLI](https://github.com/microsoft/playwright-cli) from Home Assistant automations, scripts, and conversation agents.
 
 ## What this tool provides
 
 - **Full CLI passthrough** — every `playwright-cli` command and option, including `-s=<session>`, `--json`, `--persistent`, `--profile`, `--config`, `--idle-timeout`, `run-code`, and `eval`.
 - **Home Assistant actions** — run commands, read CLI artifacts, and copy screenshots to a private signed URL for notifications and dashboards.
-- **Assist and LLM tools** — `playwright_cli__command` and `playwright_cli__events`.
+- **Conversation agent tools** — `playwright_cli__command` and `playwright_cli__events`.
 
 Example:
 ```yaml
@@ -78,11 +78,15 @@ action:
 
 The action returns the CLI's `ok`, `stdout`, and `stderr` fields. Add `--json` when you want structured output to parse in an automation.
 
+## Conversation agents
+
+The integration registers a dedicated **Playwright CLI** LLM API. In a conversation agent that lets you choose tool providers, select **Playwright CLI** in the tools or LLM APIs setting. The API exposes `playwright_cli__command` and `playwright_cli__events`.
+
 ## Documentation
 
 - [Installation](docs/installation.md) — Marketplace and app install, discovery, manual setup.
 - [Usage](docs/usage.md) — sessions, persistent profiles, config, idle timeouts, paths, and examples.
-- [Actions and LLM tools](docs/actions.md) — `run_command`, `get_artifact`, `save_artifact`, Assist examples, and the event bus.
+- [Actions and LLM tools](docs/actions.md) — `run_command`, `get_artifact`, `save_artifact`, conversation agent examples, and the event bus.
 - [App API](docs/api.md) — authenticated HTTP and WebSocket endpoints.
 - [Events](docs/events.md) — what is captured, when, and why some sessions have no browser events.
 - [Security](docs/security.md) — tokens, exposure, code execution, and artifact privacy.
@@ -100,11 +104,11 @@ This is a remote `playwright-cli` endpoint, not a full Playwright development en
 - Artifacts are limited to `.playwright-cli/` and 20 MiB each.
 - This is `playwright-cli`, not `playwright test`. `run-code` covers ad-hoc Playwright scripts; there is no test runner.
 
-Early development: HAOS and Supervised installations are the supported targets. The integration and app are versioned separately and are currently at `0.1.0`.
+Early development: HAOS and Supervised installations are the supported targets. The integration and app are versioned separately and are currently at `0.2.0`.
 
 ## Security
 
-Anyone who can call the action or LLM tool can control websites with the browser's saved credentials. `run-code` and `eval` execute arbitrary code inside the app container. Keep the API on the internal Home Assistant network, and configure Assist tool exposure deliberately. See [docs/security.md](docs/security.md).
+Anyone who can call the action or LLM tool can control websites with the browser's saved credentials. `run-code` and `eval` execute arbitrary code inside the app container. Keep the API on the internal Home Assistant network, and configure conversation agent tool exposure deliberately. See [docs/security.md](docs/security.md).
 
 ## License
 

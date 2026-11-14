@@ -1,5 +1,5 @@
 name: Playwright CLI
-version: 0.1.0
+version: 0.2.0
 slug: playwright_cli
 description: Run Playwright CLI commands from Home Assistant
 url: https://github.com/syntask/playwright-cli-haos

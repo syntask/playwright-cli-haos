@@ -21,6 +21,7 @@ from homeassistant.helpers import (
     config_validation as cv,
     device_registry as dr,
     entity_registry as er,
+    llm,
 )
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.typing import ConfigType
@@ -33,6 +34,7 @@ from .const import (
     SERVICE_RUN_COMMAND,
     SERVICE_SAVE_ARTIFACT,
 )
+from .llm_api import PlaywrightCliAPI
 
 type PlaywrightConfigEntry = ConfigEntry[PlaywrightApi]
 CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
@@ -128,6 +130,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: PlaywrightConfigEntry) -
     )
     hass.data.setdefault(DOMAIN, {})[entry.entry_id] = {"api": api}
     _async_remove_legacy_registry_entries(hass, entry)
+    entry.async_on_unload(
+        llm.async_register_api(
+            hass,
+            PlaywrightCliAPI(hass=hass, name=entry.title),
+        )
+    )
 
     async def run_command(call: ServiceCall) -> dict:
         if "session" in call.data:

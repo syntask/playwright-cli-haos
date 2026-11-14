@@ -72,6 +72,7 @@ python -m json.tool custom_components/playwright_cli/translations/en.json >/dev/
 - The default config is a starting point, not a policy layer. Users can override it with `--config` or edit the file.
 - Browser events are best effort. They require a persistent profile so the app can read `DevToolsActivePort` and connect over loopback CDP.
 - Do not add fake entities or devices. The integration exists for actions, LLM tools, discovery, and the artifact view.
+- LLM tools are exposed through the dedicated `playwright_cli` API in `llm_api.py`. Keep tool names prefixed with `playwright_cli__`.
 - Artifacts must stay private. Do not write them into Home Assistant's `www` directory.
 
 ## Validation workflows
@@ -111,11 +112,11 @@ To build and push manually instead:
 docker login ghcr.io --username syntask
 docker buildx build --platform linux/amd64 -f playwright_cli/Dockerfile \
   -t ghcr.io/syntask/playwright-cli-haos-amd64:latest \
-  -t ghcr.io/syntask/playwright-cli-haos-amd64:0.1.0 \
+  -t ghcr.io/syntask/playwright-cli-haos-amd64:0.2.0 \
   --push .
 docker buildx build --platform linux/arm64 -f playwright_cli/Dockerfile \
   -t ghcr.io/syntask/playwright-cli-haos-aarch64:latest \
-  -t ghcr.io/syntask/playwright-cli-haos-aarch64:0.1.0 \
+  -t ghcr.io/syntask/playwright-cli-haos-aarch64:0.2.0 \
   --push .
 ```
 
