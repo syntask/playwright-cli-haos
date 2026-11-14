@@ -31,7 +31,7 @@ RUN mkdir -p /usr/share/licenses/playwright-cli \
     && cp node_modules/playwright/NOTICE /usr/share/licenses/playwright-cli/playwright-NOTICE \
     && cp node_modules/playwright/ThirdPartyNotices.txt /usr/share/licenses/playwright-cli/playwright-ThirdPartyNotices.txt \
     && cp node_modules/ws/LICENSE /usr/share/licenses/playwright-cli/ws-LICENSE \
-    && chromium_license="$(find /ms-playwright -path '*/chrome-headless-shell-linux64/LICENSE.headless_shell' -print -quit)" \
+    && chromium_license="$(find /ms-playwright -name 'LICENSE.headless_shell' -print -quit)" \
     && test -n "$chromium_license" \
     && cp "$chromium_license" /usr/share/licenses/playwright-cli/chromium-LICENSE.headless_shell \
     && ffmpeg_license="$(find /ms-playwright -name COPYING.LGPLv2.1 -print -quit)" \
