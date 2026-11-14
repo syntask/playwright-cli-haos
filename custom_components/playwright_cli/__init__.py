@@ -17,7 +17,11 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_HOST
 from homeassistant.core import HomeAssistant, ServiceCall, SupportsResponse
 from homeassistant.exceptions import HomeAssistantError
-from homeassistant.helpers import device_registry as dr, entity_registry as er
+from homeassistant.helpers import (
+    config_validation as cv,
+    device_registry as dr,
+    entity_registry as er,
+)
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.typing import ConfigType
 
@@ -31,6 +35,7 @@ from .const import (
 )
 
 type PlaywrightConfigEntry = ConfigEntry[PlaywrightApi]
+CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 LEGACY_PLATFORMS = frozenset({"camera", "event", "sensor"})
 ARTIFACT_DIRECTORY = ".playwright_cli/artifacts"
 ARTIFACT_URL = "/api/playwright_cli/artifact"
