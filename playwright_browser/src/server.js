@@ -2,12 +2,14 @@ import { randomUUID, timingSafeEqual } from "node:crypto";
 import { createServer } from "node:http";
 import { readFileSync } from "node:fs";
 import { readFile, realpath, stat } from "node:fs/promises";
+import { hostname } from "node:os";
 import { extname, isAbsolute, relative, resolve } from "node:path";
 import { URL } from "node:url";
 import { chromium } from "playwright";
 import { WebSocketServer } from "ws";
-import { runCli, validateCommandRequest } from "./command.js";
-import { loadSessions, updateSession } from "./session-store.js";
+import { runCliRequest, validateCommandRequest } from "./command.js";
+import { ensureDefaultConfig } from "./default-config.js";
+import { resolveApiToken } from "./token.js";
 
 const PORT = Number.parseInt(process.env.PORT || "8080", 10);
 let appOptions = {};
@@ -16,10 +18,8 @@ try {
 } catch {
   // Local development supplies PLAYWRIGHT_API_TOKEN directly.
 }
-const TOKEN = process.env.PLAYWRIGHT_API_TOKEN || appOptions.api_token || "";
-const DATA_DIR = process.env.HOME || "/data";
+const DATA_DIR = process.env.PLAYWRIGHT_DATA_DIR || process.env.HOME || "/data";
 const ARTIFACT_DIR = resolve(DATA_DIR, ".playwright-cli");
-const DAEMON_DIR = resolve(DATA_DIR, ".cache/ms-playwright/daemon");
 const MAX_BODY_BYTES = 64 * 1024;
 const MAX_ARTIFACT_BYTES = 20 * 1024 * 1024;
 const EVENT_LIMIT = 200;
@@ -27,17 +27,28 @@ const EVENT_POLL_INTERVAL_MS = 3000;
 const INSTANCE_ID = randomUUID();
 const events = [];
 const sockets = new Set();
-const commandLocks = new Map();
 const browserMonitors = new Map();
 const monitorWarnings = new Map();
+let commandQueue = Promise.resolve();
 let sequence = 0;
 let eventPollTimer;
 let eventPollRunning = false;
+let discoveryTimer;
 
-if (TOKEN.length < 32) {
-  console.error("Configure an API token with at least 32 characters; refusing to start");
+let tokenResult;
+try {
+  tokenResult = resolveApiToken(
+    DATA_DIR,
+    process.env.PLAYWRIGHT_API_TOKEN || appOptions.api_token || "",
+  );
+} catch (error) {
+  console.error(error.message);
   process.exit(1);
 }
+if (tokenResult.generated) {
+  console.info("Generated a new API token and saved it to the app data directory");
+}
+const TOKEN = tokenResult.token;
 
 function authorized(request) {
   const supplied = request.headers.authorization?.replace(/^Bearer\s+/i, "") || "";
@@ -86,6 +97,55 @@ function parseCliOutput(stdout) {
     return JSON.parse(stdout);
   } catch {
     return stdout;
+  }
+}
+
+let discoverySent = false;
+let discoveryAttempts = 0;
+
+async function sendDiscovery() {
+  const supervisorToken = process.env.SUPERVISOR_TOKEN;
+  if (discoverySent || !supervisorToken || shuttingDown) return;
+  discoveryAttempts += 1;
+
+  const headers = {
+    Authorization: `Bearer ${supervisorToken}`,
+    "Content-Type": "application/json",
+  };
+  let appHost = hostname();
+  try {
+    const response = await fetch("http://supervisor/addons/self/info", {
+      headers,
+      signal: AbortSignal.timeout(5000),
+    });
+    if (response.ok) {
+      const payload = await response.json();
+      const slug = payload?.data?.slug;
+      if (typeof slug === "string" && slug) appHost = slug.replaceAll("_", "-");
+    }
+  } catch (error) {
+    console.warn(`Could not read the app slug from Supervisor: ${error.message}`);
+  }
+
+  try {
+    const response = await fetch("http://supervisor/discovery", {
+      method: "POST",
+      headers,
+      signal: AbortSignal.timeout(5000),
+      body: JSON.stringify({
+        service: "playwright_browser",
+        config: { host: appHost, port: String(PORT), token: TOKEN },
+      }),
+    });
+    if (!response.ok) throw new Error(`${response.status} ${await response.text()}`);
+    const result = await response.json().catch(() => ({}));
+    discoverySent = true;
+    console.info(`Sent Playwright Browser discovery${result.uuid ? ` (${result.uuid})` : ""}`);
+  } catch (error) {
+    console.warn(`Could not send discovery to Home Assistant: ${error.message}`);
+    if (discoveryAttempts < 5 && !shuttingDown) {
+      discoveryTimer = setTimeout(sendDiscovery, 30_000);
+    }
   }
 }
 
@@ -184,17 +244,20 @@ async function connectBrowserMonitor(browserInfo) {
   const session = browserInfo.name;
   const existing = browserMonitors.get(session);
   if (existing?.browser.isConnected()) return;
+  if (!browserInfo.userDataDir) {
+    throw new Error("Session has no persistent profile; browser events require --persistent or --profile");
+  }
 
-  const daemonRoot = await realpath(DAEMON_DIR);
+  const dataRoot = await realpath(DATA_DIR);
   const userDataDir = await realpath(browserInfo.userDataDir);
-  const relativeProfilePath = relative(daemonRoot, userDataDir);
+  const relativeProfilePath = relative(dataRoot, userDataDir);
   if (
     !relativeProfilePath ||
     relativeProfilePath === ".." ||
     relativeProfilePath.startsWith(`..${process.platform === "win32" ? "\\" : "/"}`) ||
     isAbsolute(relativeProfilePath)
   ) {
-    throw new Error("CLI reported a browser profile outside its data directory");
+    throw new Error("CLI reported a browser profile outside the app data directory");
   }
   const portContents = await readFile(resolve(userDataDir, "DevToolsActivePort"), "utf8");
   const port = Number.parseInt(portContents.split(/\r?\n/, 1)[0], 10);
@@ -218,24 +281,19 @@ async function connectBrowserMonitor(browserInfo) {
   monitorWarnings.delete(session);
 }
 
-async function attachSessionMonitor(session) {
-  const listingResult = await runCli({ command: "list", arguments: [] });
-  if (!listingResult.ok) return;
-  const listing = parseCliOutput(listingResult.stdout);
-  const browserInfo = listing?.browsers?.find((browser) => browser.name === session && browser.status === "open");
-  if (browserInfo) await connectBrowserMonitor(browserInfo);
-}
-
 async function pollBrowserEvents() {
   if (eventPollRunning || shuttingDown) return;
   eventPollRunning = true;
   try {
-    await withSessionLock("__all_sessions__", async () => {
-      const listResult = await runCli({ command: "list", arguments: [] });
+    await withCommandLock(async () => {
+      const listResult = await runCliRequest({ argv: ["list", "--json"] }, { timeoutMs: 30_000 });
       if (!listResult.ok) return;
       const listing = parseCliOutput(listResult.stdout);
       const browsers = Array.isArray(listing?.browsers) ? listing.browsers : [];
       for (const browser of browsers.filter((item) => item.status === "open")) {
+        // Ephemeral sessions have no profile directory, so there is no CDP port
+        // to discover. This is expected, not an error.
+        if (!browser.userDataDir) continue;
         try {
           await connectBrowserMonitor(browser);
         } catch (error) {
@@ -303,17 +361,17 @@ async function readArtifact(filePath) {
   };
 }
 
-async function withSessionLock(session, operation) {
-  const previous = commandLocks.get(session) || Promise.resolve();
+async function withCommandLock(operation) {
+  const previous = commandQueue;
   let release;
-  const current = new Promise((resolve) => { release = resolve; });
-  commandLocks.set(session, current);
+  commandQueue = new Promise((resolve) => {
+    release = resolve;
+  });
   await previous;
   try {
     return await operation();
   } finally {
     release();
-    if (commandLocks.get(session) === current) commandLocks.delete(session);
   }
 }
 
@@ -344,15 +402,6 @@ const server = createServer(async (request, response) => {
     });
   }
 
-  if (request.method === "GET" && url.pathname === "/api/v1/sessions") {
-    const result = await withSessionLock("__all_sessions__", () => runCli({ command: "list", arguments: [] }));
-    const listing = parseCliOutput(result.stdout);
-    return send(response, result.ok ? 200 : 502, {
-      ...result,
-      sessions: Array.isArray(listing?.browsers) ? listing.browsers : [],
-    });
-  }
-
   if (request.method === "GET" && url.pathname === "/api/v1/artifact") {
     try {
       return send(response, 200, await readArtifact(url.searchParams.get("path")));
@@ -365,33 +414,9 @@ const server = createServer(async (request, response) => {
   if (request.method === "POST" && url.pathname === "/api/v1/command") {
     try {
       const command = validateCommandRequest(await readJson(request));
-      const { result, event } = await withSessionLock("__all_sessions__", async () => {
-        publish({ type: "command_started", command: command.command, session: command.session });
-        const openUrlIndex = command.command === "open"
-          ? Math.max(
-              command.arguments.findIndex((argument) => /^(https?|data|about|file):/i.test(argument)),
-              command.arguments[0] && !command.arguments[0].startsWith("-") ? 0 : -1,
-            )
-          : -1;
-        const initialUrl = openUrlIndex >= 0 ? command.arguments[openUrlIndex] : null;
-        let commandResult = await runCli(
-          initialUrl
-            ? { ...command, arguments: command.arguments.filter((_, index) => index !== openUrlIndex) }
-            : command,
-        );
-        if (commandResult.ok && command.command === "open") {
-          await updateSession(DATA_DIR, command.session, true);
-          try {
-            await attachSessionMonitor(command.session);
-          } catch (error) {
-            console.warn(`Could not attach event monitor for ${command.session}: ${error.message}`);
-          }
-          if (initialUrl) {
-            commandResult = await runCli({ session: command.session, command: "goto", arguments: [initialUrl] });
-          }
-        } else if (commandResult.ok && command.command === "delete-data") {
-          await updateSession(DATA_DIR, command.session, false);
-        }
+      const { result, event } = await withCommandLock(async () => {
+        publish({ type: "command_started", command: command.command });
+        const commandResult = await runCliRequest(command);
         const eventResult = {
           ...commandResult,
           stdout: commandResult.stdout.slice(0, 8192),
@@ -400,7 +425,6 @@ const server = createServer(async (request, response) => {
         const commandEvent = publish({
           type: commandResult.ok ? "command_completed" : "command_failed",
           command: command.command,
-          session: command.session,
           result: eventResult,
         });
         return { result: commandResult, event: commandEvent };
@@ -430,36 +454,31 @@ websocketServer.on("connection", (socket) => {
   socket.send(JSON.stringify({ type: "ready", sequence, instance_id: INSTANCE_ID }));
 });
 
+try {
+  await ensureDefaultConfig(DATA_DIR);
+} catch (error) {
+  console.error(`Could not create the default Playwright CLI config: ${error.message}`);
+}
+
 server.listen(PORT, "0.0.0.0", () => {
   console.log(`Playwright API listening on :${PORT}`);
-  void restorePersistentSessions().finally(pollBrowserEvents);
+  void sendDiscovery();
+  void pollBrowserEvents();
 });
-
-async function restorePersistentSessions() {
-  try {
-    const sessions = await loadSessions(DATA_DIR);
-    for (const session of sessions) {
-      const result = await withSessionLock("__all_sessions__", () =>
-        runCli({ command: "open", session, arguments: [] }),
-      );
-      if (result.ok) console.info(`Restored persistent browser session: ${session}`);
-      else console.warn(`Could not restore browser session ${session}: ${result.stderr}`);
-    }
-  } catch (error) {
-    console.error(`Could not restore persistent browser sessions: ${error.message}`);
-  }
-}
 
 let shuttingDown = false;
 function shutdown() {
   if (shuttingDown) return;
   shuttingDown = true;
   clearTimeout(eventPollTimer);
+  clearTimeout(discoveryTimer);
   for (const socket of sockets) socket.close();
   const forceExit = setTimeout(() => process.exit(1), 8000);
   server.close(async () => {
     try {
-      await runCli({ command: "close-all", arguments: [] }, { timeoutMs: 6000 });
+      await withCommandLock(() =>
+        runCliRequest({ argv: ["close-all"] }, { timeoutMs: 6000 }),
+      );
     } catch (error) {
       console.warn(`Could not close browser sessions cleanly: ${error.message}`);
     }

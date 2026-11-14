@@ -13,15 +13,15 @@ from .const import DOMAIN
 
 
 class PlaywrightCommandTool(llm.Tool):
-    """Execute a playwright-cli command in a named persistent browser session."""
+    """Execute a playwright-cli command line exactly as written."""
 
     name = f"{DOMAIN}__command"
     title = "Run a Playwright browser command"
     description = (
-        "Run one playwright-cli command in a named browser session. Use commands such as open, "
-        "snapshot, click, fill, press, screenshot, tab-list, console, or requests. "
-        "Arguments are separate CLI arguments, not a shell command. Browser commands can "
-        "change web pages and access external sites."
+        "Run one playwright-cli command line, exactly like the terminal. Use normal CLI syntax, "
+        "including the session selector and options: '-s=kitchen open https://example.com', "
+        "'-s=kitchen snapshot --json', 'click e3', or 'fill e2 \"hello world\"'. Quotes are parsed, "
+        "but no shell is used. Browser commands can change web pages and access external sites."
     )
     integration = DOMAIN
     annotations = llm.ToolAnnotations(
@@ -32,9 +32,7 @@ class PlaywrightCommandTool(llm.Tool):
     )
     parameters = probatio.Schema(
         {
-            probatio.Optional("session"): str,
             "command": str,
-            probatio.Optional("arguments"): list[str],
         }
     )
 
@@ -44,27 +42,24 @@ class PlaywrightCommandTool(llm.Tool):
         tool_input: llm.ToolInput,
         llm_context: LLMContext,
     ) -> llm.ToolResult:
-        """Send a command to the configured app."""
+        """Send a command line to the configured app."""
         del llm_context
         config_entries = hass.config_entries.async_entries(DOMAIN)
         if not config_entries:
             return llm.ToolResult(data={"error": "Playwright Browser is not configured"}, error=True)
         entry = config_entries[0]
         api: PlaywrightApi = hass.data[DOMAIN][entry.entry_id]["api"]
-        args = tool_input.tool_args
+        command = tool_input.tool_args.get("command")
+        if not command:
+            return llm.ToolResult(data={"error": "command is required"}, error=True)
         try:
-            result = await api.command(
-                args.get("session", "default"),
-                args["command"],
-                args.get("arguments", []),
-            )
-        except (PlaywrightApiError, KeyError) as err:
+            result = await api.command(command)
+        except PlaywrightApiError as err:
             return llm.ToolResult(data={"error": str(err)}, error=True)
         hass.bus.async_fire(
             f"{DOMAIN}_command",
             {
-                "session": args.get("session", "default"),
-                "command": args["command"],
+                "command": command,
                 "success": result.get("ok", False),
             },
         )
@@ -133,11 +128,12 @@ def async_get_tools(
     return llm.LLMTools(
         tools=[PlaywrightCommandTool(), PlaywrightEventsTool()],
         prompt=(
-            "Use playwright_browser__command to control a Playwright browser and "
-            "playwright_browser__events to read command and browser events. Start a session with "
-            "command 'open' and the URL as an argument, use command 'help' (optionally with a command "
-            "name as its argument) to discover CLI commands, then use 'snapshot' to inspect the page "
-            "and the returned element references with commands such as 'click' and 'fill'. "
-            "Sessions are persistent. Do not assume a page action succeeded unless its result confirms it."
+            "Use playwright_browser__command with a complete playwright-cli command line, exactly "
+            "as you would type it in a terminal. Include the session selector when you want a named "
+            "session, for example '-s=kitchen open https://example.com', then '-s=kitchen snapshot'. "
+            "Add --json to get structured output. Use '--help' to discover commands. Use "
+            "playwright_browser__events to read command and browser events. Do not include a shell; "
+            "pipes, redirects, and command chaining are not available. Do not assume a page action "
+            "succeeded unless its result confirms it."
         ),
     )

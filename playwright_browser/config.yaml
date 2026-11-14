@@ -1,7 +1,7 @@
 name: Playwright Browser
 version: 0.1.0
 slug: playwright_browser
-description: Control persistent Playwright CLI browser sessions from Home Assistant
+description: Run Playwright CLI browser commands from Home Assistant
 url: https://github.com/syntask/playwright-ha-app
 arch:
   - amd64
@@ -10,6 +10,8 @@ startup: application
 boot: auto
 init: false
 watchdog: http://[HOST]:[PORT:8080]/health
+discovery:
+  - playwright_browser
 ports:
   8080/tcp: null
 ports_description:
@@ -17,5 +19,5 @@ ports_description:
 options:
   api_token: ""
 schema:
-  api_token: password
+  api_token: password?
 image: ghcr.io/syntask/playwright-ha-app-{arch}

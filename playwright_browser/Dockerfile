@@ -4,8 +4,7 @@ FROM ${BUILD_FROM}
 ENV NODE_ENV=production \
     HOME=/data \
     PATH=/app/node_modules/.bin:${PATH} \
-    PLAYWRIGHT_BROWSERS_PATH=/ms-playwright \
-    PLAYWRIGHT_CLI_CONFIG=/app/cli.config.json
+    PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
 
 WORKDIR /app
 

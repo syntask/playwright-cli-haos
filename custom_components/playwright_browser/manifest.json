@@ -3,8 +3,9 @@
   "name": "Playwright Browser",
   "codeowners": ["@syntask"],
   "config_flow": true,
+  "dependencies": ["http"],
   "documentation": "https://github.com/syntask/playwright-ha-app",
-  "iot_class": "local_poll",
+  "iot_class": "local_push",
   "requirements": [],
   "version": "0.1.0"
 }

@@ -36,17 +36,12 @@ class PlaywrightApi:
         except (ClientError, TimeoutError, ValueError) as err:
             raise PlaywrightApiError(str(err)) from err
 
-    async def command(
-        self, session: str, command: str, arguments: list[str] | None = None
-    ) -> dict[str, Any]:
+    async def command(self, command: str) -> dict[str, Any]:
         return await self._request(
             "POST",
             "/api/v1/command",
-            json={"session": session, "command": command, "arguments": arguments or []},
+            json={"command": command},
         )
-
-    async def sessions(self) -> dict[str, Any]:
-        return await self._request("GET", "/api/v1/sessions")
 
     async def events(
         self, after: int = 0, limit: int = 100, instance_id: str | None = None

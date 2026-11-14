@@ -1,27 +1,18 @@
 run_command:
   name: Run CLI command
-  description: Run a Playwright CLI command in a named persistent browser session.
+  description: Run a playwright-cli command line exactly as written.
   fields:
-    session:
-      name: Session
-      description: Named browser session; defaults to default.
-      required: false
-      example: living_room
-      selector:
-        text:
     command:
       name: Command
-      description: Playwright CLI command, for example open, snapshot, click, fill, or screenshot.
+      description: >-
+        Complete Playwright CLI command line, including any session selector or
+        options, for example "-s=kitchen open https://example.com" or
+        "-s=kitchen snapshot --json". Quotes are parsed, but no shell is used.
+        Omit the leading playwright-cli.
       required: true
-      example: open
+      example: -s=kitchen open https://example.com
       selector:
         text:
-    arguments:
-      name: Arguments
-      description: Separate command-line arguments, passed without shell interpretation.
-      required: false
-      example:
-        - https://example.com
 get_artifact:
   name: Get CLI artifact
   description: Read a screenshot, snapshot, trace, or other file from the app artifact directory.
@@ -31,5 +22,27 @@ get_artifact:
       description: Relative path reported by the CLI, for example .playwright-cli/screenshot.png.
       required: true
       example: .playwright-cli/screenshot.png
+      selector:
+        text:
+save_artifact:
+  name: Save CLI artifact
+  description: >-
+    Copy an app artifact into Home Assistant's private artifact store and
+    return an authenticated URL for notifications and dashboards.
+  fields:
+    path:
+      name: Artifact path
+      description: Relative path reported by the CLI, for example .playwright-cli/screenshot.png.
+      required: true
+      example: .playwright-cli/screenshot.png
+      selector:
+        text:
+    destination:
+      name: Destination
+      description: >-
+        Relative path in the private artifact store, for example
+        playwright/screenshot.png. Existing files are overwritten.
+      required: true
+      example: playwright/screenshot.png
       selector:
         text:

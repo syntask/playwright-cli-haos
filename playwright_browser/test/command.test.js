@@ -1,60 +1,96 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { buildCliArguments, validateCommandRequest } from "../src/command.js";
-import { loadSessions, updateSession } from "../src/session-store.js";
+import { validateCommandRequest } from "../src/command.js";
+import { ensureDefaultConfig } from "../src/default-config.js";
+import { parseCommandLine } from "../src/command-line.js";
 
-test("validates commands and defaults to a persistent named session", () => {
-  assert.deepEqual(validateCommandRequest({ command: "open", arguments: ["https://example.com"] }), {
-    command: "open",
-    session: "default",
-    arguments: ["https://example.com"],
-  });
-  assert.deepEqual(buildCliArguments({ command: "open", session: "default", arguments: ["https://example.com"] }), [
-    "-s=default", "--json", "open", "https://example.com", "--persistent",
+test("passes a complete CLI line through unchanged", () => {
+  assert.deepEqual(
+    validateCommandRequest({ command: "-s=todomvc open https://demo.playwright.dev/todomvc" }),
+    {
+      command: "-s=todomvc open https://demo.playwright.dev/todomvc",
+      argv: ["-s=todomvc", "open", "https://demo.playwright.dev/todomvc"],
+    },
+  );
+  assert.deepEqual(parseCommandLine("list --json"), ["list", "--json"]);
+  assert.deepEqual(parseCommandLine("--help"), ["--help"]);
+  assert.deepEqual(parseCommandLine("--config=/data/custom.json open example.com"), [
+    "--config=/data/custom.json",
+    "open",
+    "example.com",
   ]);
 });
 
-test("does not add a shell and preserves each argument", () => {
-  const command = validateCommandRequest({ command: "fill", session: "living_room", arguments: ["e1", "hello; touch /tmp/nope"] });
-  assert.deepEqual(buildCliArguments(command), ["-s=living_room", "--json", "fill", "e1", "hello; touch /tmp/nope"]);
+test("does not add flags, sessions, or a shell", () => {
+  const command = validateCommandRequest({ command: 'fill e1 "hello; touch /tmp/nope"' });
+  assert.deepEqual(command.argv, ["fill", "e1", "hello; touch /tmp/nope"]);
+  assert.deepEqual(validateCommandRequest({ command: "open https://example.com" }).argv, [
+    "open",
+    "https://example.com",
+  ]);
 });
 
-test("global commands do not get a session selector", () => {
-  assert.deepEqual(buildCliArguments({ command: "list", session: "default", arguments: [] }), ["--json", "list"]);
-  assert.deepEqual(buildCliArguments({ command: "help", session: "default", arguments: ["open"] }), ["--help", "open"]);
-  assert.deepEqual(buildCliArguments({ command: "version", session: "default", arguments: [] }), ["--version"]);
+test("accepts quoted arguments and a copied playwright-cli prefix", () => {
+  assert.deepEqual(validateCommandRequest({ command: 'fill e1 "hello world"' }).argv, [
+    "fill",
+    "e1",
+    "hello world",
+  ]);
+  assert.deepEqual(validateCommandRequest({ command: 'type "say \\"hello\\""' }).argv, [
+    "type",
+    'say "hello"',
+  ]);
+  assert.deepEqual(validateCommandRequest({ command: "playwright-cli help open" }).argv, [
+    "help",
+    "open",
+  ]);
+  assert.deepEqual(validateCommandRequest({ command: "playwright-cli -s=work snapshot" }).argv, [
+    "-s=work",
+    "snapshot",
+  ]);
 });
 
-test("CLI config is applied only when opening a browser", () => {
-  assert.deepEqual(
-    buildCliArguments({ command: "open", session: "work", arguments: [] }, "/app/cli.config.json"),
-    ["-s=work", "--json", "open", "--persistent", "--config", "/app/cli.config.json"],
+test("rejects the removed split-field interface", () => {
+  assert.throws(
+    () => validateCommandRequest({ command: "open https://example.com", session: "default" }),
+    /Include the session in the command line/,
   );
-  assert.deepEqual(
-    buildCliArguments({ command: "click", session: "work", arguments: ["e2"] }, "/app/cli.config.json"),
-    ["-s=work", "--json", "click", "e2"],
+  assert.throws(
+    () => validateCommandRequest({ command: "open", arguments: ["https://example.com"] }),
+    TypeError,
   );
+  assert.throws(
+    () => validateCommandRequest({ command_line: "open https://example.com" }),
+    TypeError,
+  );
+  assert.throws(() => validateCommandRequest({ command: 3 }), TypeError);
+  assert.throws(() => validateCommandRequest(null), TypeError);
 });
 
-test("rejects malformed sessions, commands, and non-string arguments", () => {
-  assert.throws(() => validateCommandRequest({ command: "open;rm", session: "default" }), TypeError);
-  assert.throws(() => validateCommandRequest({ command: "open", session: "../other" }), TypeError);
-  assert.throws(() => validateCommandRequest({ command: "open", arguments: ["https://example.com", 1] }), TypeError);
+test("rejects malformed command lines", () => {
+  assert.throws(() => validateCommandRequest({ command: "open\nrm" }), TypeError);
+  assert.throws(() => validateCommandRequest({ command: 'fill e1 "unterminated' }), TypeError);
+  assert.throws(() => validateCommandRequest({ command: "   " }), TypeError);
+  assert.throws(() => validateCommandRequest({ command: "playwright-cli" }), TypeError);
 });
 
-test("persistent session registry survives updates and filters invalid entries", async () => {
+test("installs the default CLI config once", async () => {
   const directory = await mkdtemp(join(tmpdir(), "playwright-ha-test-"));
   try {
-    await updateSession(directory, "work_profile", true);
-    await updateSession(directory, "default", true);
-    assert.deepEqual(await loadSessions(directory), ["default", "work_profile"]);
-    await updateSession(directory, "work_profile", false);
-    assert.deepEqual(await loadSessions(directory), ["default"]);
-    await writeFile(join(directory, "persistent-sessions.json"), JSON.stringify(["default", "../escape", 7]));
-    assert.deepEqual(await loadSessions(directory), ["default"]);
+    const path = await ensureDefaultConfig(directory);
+    const config = JSON.parse(await readFile(path, "utf8"));
+    assert.equal(config.browser.browserName, "chromium");
+    assert.equal(config.timeouts.idle, 1800000);
+    assert.ok(config.browser.launchOptions.args.includes("--no-sandbox"));
+
+    await writeFile(path, '{"browser":{"browserName":"firefox"}}');
+    await ensureDefaultConfig(directory);
+    assert.deepEqual(JSON.parse(await readFile(path, "utf8")), {
+      browser: { browserName: "firefox" },
+    });
   } finally {
     await rm(directory, { recursive: true, force: true });
   }

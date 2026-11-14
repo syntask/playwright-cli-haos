@@ -4,5 +4,8 @@
     "launchOptions": {
       "args": ["--no-sandbox", "--disable-dev-shm-usage", "--remote-debugging-port=0"]
     }
+  },
+  "timeouts": {
+    "idle": 1800000
   }
 }
