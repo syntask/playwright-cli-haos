@@ -1,35 +1,41 @@
 ![](docs/assets/icon.png)
 
-# Playwright CLI for Home Assistant
+# Playwright CLI for Home Assistant OS
 
-Run [Microsoft Playwright CLI](https://github.com/microsoft/playwright-cli) from Home Assistant automations, scripts, and Assist. The app bundles `playwright-cli` and Chromium. The companion integration exposes a Home Assistant action and LLM tools. 
+Run [Microsoft Playwright CLI](https://github.com/microsoft/playwright-cli) from Home Assistant automations, scripts, and Assist.
 
-The Home Assistant action accepts standard Playwright CLI commands, for example:
+## What this tool provides
 
+- **Full CLI passthrough** — every `playwright-cli` command and option, including `-s=<session>`, `--json`, `--persistent`, `--profile`, `--config`, `--idle-timeout`, `run-code`, and `eval`.
+- **Home Assistant actions** — run commands, read CLI artifacts, and copy screenshots to a private signed URL for notifications and dashboards.
+- **Assist and LLM tools** — `playwright_cli__command` and `playwright_cli__events`.
+
+Example:
 ```yaml
-action: playwright_browser.run_command
+action: playwright_cli.run_command
 data:
   command: -s=todomvc open https://demo.playwright.dev/todomvc
 ```
 
-```yaml
-action: playwright_browser.run_command
-data:
-  command: -s=todomvc snapshot --json
-```
+## Architecture
+This tool exists in two parts, an app and an integration that work together:
 
-## What it provides
+**App:** Bundles `playwright-cli` and Chromium in a Docker image and exposes them via a REST API.
 
-- **Full CLI passthrough** — every `playwright-cli` command and option, including `-s=<session>`, `--json`, `--persistent`, `--profile`, `--config`, `--idle-timeout`, `run-code`, and `eval`.
-- **Home Assistant actions** — run commands, read CLI artifacts, and copy screenshots to a private signed URL for notifications and dashboards.
-- **Assist and LLM tools** — `playwright_browser__command` and `playwright_browser__events`.
+**Integration:** Connects to the app via the REST API and exposes it to Home Assistant actions and LLM tools.
 
 ## Install
 
-1. Add this repository to HACS as a custom integration and install **Playwright Browser**, or copy `custom_components/playwright_browser` into your Home Assistant `custom_components` directory.
-2. Restart Home Assistant.
-3. Add `https://github.com/syntask/playwright-ha-app` as an app repository and install the **Playwright Browser** app.
-4. Start the app. Home Assistant should offer a discovered **Playwright Browser** integration; confirm it.
+[![Open your Home Assistant instance and open this repository in the Marketplace.](https://my.home-assistant.io/badges/marketplace_repository.svg)](https://my.home-assistant.io/redirect/marketplace_repository/?owner=syntask&repository=playwright-cli-haos&category=integration)
+[![Open your Home Assistant instance and add this app repository.](https://my.home-assistant.io/badges/supervisor_add_addon_repository.svg)](https://my.home-assistant.io/redirect/supervisor_add_addon_repository/?repository_url=https%3A%2F%2Fgithub.com%2Fsyntask%2Fplaywright-cli-haos)
+
+Playwright CLI has two parts that are installed separately:
+
+1. **Integration** — open the Marketplace button above (or go to **Settings → Marketplace**), add `https://github.com/syntask/playwright-cli-haos` as a custom repository if needed, and install **Playwright CLI**. Restart Home Assistant when prompted.
+2. **App** — open the app repository button above (or go to **Settings → Apps → Install app**, open the ⋮ menu, and choose **Repositories**), add `https://github.com/syntask/playwright-cli-haos`, and install the **Playwright CLI** app.
+3. Leave **API token** blank and start the app. Home Assistant should offer a discovered **Playwright CLI** integration; confirm it under **Settings → Devices & services**.
+
+To install the integration manually instead, copy `custom_components/playwright_cli` into your Home Assistant `custom_components` directory and restart Home Assistant.
 
 Full steps, including manual setup when discovery is unavailable, are in [docs/installation.md](docs/installation.md).
 
@@ -39,11 +45,11 @@ Open a page in a named session and read its accessibility snapshot:
 
 ```yaml
 action:
-  - action: playwright_browser.run_command
+  - action: playwright_cli.run_command
     data:
       command: -s=kitchen open https://example.com
 
-  - action: playwright_browser.run_command
+  - action: playwright_cli.run_command
     response_variable: page
     data:
       command: -s=kitchen snapshot --json
@@ -53,11 +59,11 @@ Take a screenshot and show it in a notification:
 
 ```yaml
 action:
-  - action: playwright_browser.run_command
+  - action: playwright_cli.run_command
     data:
       command: -s=kitchen screenshot --filename=.playwright-cli/kitchen.png
 
-  - action: playwright_browser.save_artifact
+  - action: playwright_cli.save_artifact
     data:
       path: .playwright-cli/kitchen.png
       destination: playwright/kitchen.png
@@ -74,7 +80,7 @@ The action returns the CLI's `ok`, `stdout`, and `stderr` fields. Add `--json` w
 
 ## Documentation
 
-- [Installation](docs/installation.md) — integration and app install, discovery, manual setup.
+- [Installation](docs/installation.md) — Marketplace and app install, discovery, manual setup.
 - [Usage](docs/usage.md) — sessions, persistent profiles, config, idle timeouts, paths, and examples.
 - [Actions and LLM tools](docs/actions.md) — `run_command`, `get_artifact`, `save_artifact`, Assist examples, and the event bus.
 - [App API](docs/api.md) — authenticated HTTP and WebSocket endpoints.

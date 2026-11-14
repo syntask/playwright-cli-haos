@@ -1,4 +1,4 @@
-"""Playwright Browser integration."""
+"""Playwright CLI integration."""
 
 from __future__ import annotations
 
@@ -32,8 +32,8 @@ from .const import (
 
 type PlaywrightConfigEntry = ConfigEntry[PlaywrightApi]
 LEGACY_PLATFORMS = frozenset({"camera", "event", "sensor"})
-ARTIFACT_DIRECTORY = ".playwright_browser/artifacts"
-ARTIFACT_URL = "/api/playwright_browser/artifact"
+ARTIFACT_DIRECTORY = ".playwright_cli/artifacts"
+ARTIFACT_URL = "/api/playwright_cli/artifact"
 SIGNED_URL_LIFETIME = timedelta(days=30)
 MAX_ARTIFACT_BYTES = 20 * 1024 * 1024
 DESTINATION_PART = re.compile(r"[A-Za-z0-9_-][A-Za-z0-9._-]*")
@@ -43,7 +43,7 @@ class PlaywrightArtifactView(HomeAssistantView):
     """Serve saved artifacts through authenticated or signed URLs."""
 
     url = f"{ARTIFACT_URL}/{{path:.*}}"
-    name = "api:playwright_browser:artifact"
+    name = "api:playwright_cli:artifact"
     requires_auth = True
 
     def __init__(self, hass: HomeAssistant) -> None:

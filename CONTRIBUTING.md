@@ -2,8 +2,8 @@
 
 This repository contains two installable pieces:
 
-- `playwright_browser/` — the Home Assistant app. It packages `playwright-cli`, Chromium, and a small Node.js HTTP API.
-- `custom_components/playwright_browser/` — the companion integration. It registers Home Assistant actions, LLM tools, discovery handling, and the private artifact view.
+- `playwright_cli/` — the Home Assistant app. It packages `playwright-cli`, Chromium, and a small Node.js HTTP API.
+- `custom_components/playwright_cli/` — the companion integration. It registers Home Assistant actions, LLM tools, discovery handling, and the private artifact view.
 
 The design goal is a thin command-layer port of `playwright-cli`, not a higher-level browser abstraction. Commands are passed through as complete CLI lines. The app does not add session flags, rewrite output, or maintain its own session registry.
 
@@ -12,7 +12,7 @@ The design goal is a thin command-layer port of `playwright-cli`, not a higher-l
 Requirements: Node.js 22+, npm, Docker (optional), and Python 3.12+ for integration checks.
 
 ```sh
-cd playwright_browser
+cd playwright_cli
 npm ci
 npm test
 ```
@@ -53,15 +53,15 @@ The default CLI config is installed at `$PLAYWRIGHT_DATA_DIR/.playwright/cli.con
 There is no Python test suite yet. At minimum, compile-check the integration:
 
 ```sh
-python -m compileall custom_components/playwright_browser
+python -m compileall custom_components/playwright_cli
 ```
 
 Validate JSON and YAML files before committing:
 
 ```sh
 python -m json.tool hacs.json >/dev/null
-python -m json.tool custom_components/playwright_browser/manifest.json >/dev/null
-python -m json.tool custom_components/playwright_browser/translations/en.json >/dev/null
+python -m json.tool custom_components/playwright_cli/manifest.json >/dev/null
+python -m json.tool custom_components/playwright_cli/translations/en.json >/dev/null
 ```
 
 ## Code guidelines
@@ -77,13 +77,13 @@ python -m json.tool custom_components/playwright_browser/translations/en.json >/
 ## Building the image
 
 ```sh
-docker build -t playwright-ha-app:local ./playwright_browser
+docker build -t playwright-cli-haos:local ./playwright_cli
 ```
 
 Smoke-test the CLI and default config inside the image:
 
 ```sh
-docker run --rm -v "$(mktemp -d):/data" playwright-ha-app:local sh -c '
+docker run --rm -v "$(mktemp -d):/data" playwright-cli-haos:local sh -c '
   node src/server.js &
   sleep 2
   playwright-cli -s=smoke open "data:text/html,<h1>smoke</h1>" --json
@@ -99,28 +99,28 @@ Images are published manually; this repository does not use GitHub Actions.
 ```sh
 docker login ghcr.io --username syntask
 docker buildx build --platform linux/amd64 \
-  -t ghcr.io/syntask/playwright-ha-app-amd64:latest \
-  -t ghcr.io/syntask/playwright-ha-app-amd64:0.1.0 \
-  --push ./playwright_browser
+  -t ghcr.io/syntask/playwright-cli-haos-amd64:latest \
+  -t ghcr.io/syntask/playwright-cli-haos-amd64:0.1.0 \
+  --push ./playwright_cli
 docker buildx build --platform linux/arm64 \
-  -t ghcr.io/syntask/playwright-ha-app-aarch64:latest \
-  -t ghcr.io/syntask/playwright-ha-app-aarch64:0.1.0 \
-  --push ./playwright_browser
+  -t ghcr.io/syntask/playwright-cli-haos-aarch64:latest \
+  -t ghcr.io/syntask/playwright-cli-haos-aarch64:0.1.0 \
+  --push ./playwright_cli
 ```
 
 Use a GitHub token with package write access for `docker login`. After the first push, make both GHCR packages public so Home Assistant can pull them without credentials.
 
 When releasing:
 
-1. Bump `playwright_browser/config.yaml` version.
-2. Bump `custom_components/playwright_browser/manifest.json` version.
+1. Bump `playwright_cli/config.yaml` version.
+2. Bump `custom_components/playwright_cli/manifest.json` version.
 3. Build and push matching image tags.
 4. Commit, tag, and publish a GitHub release.
 5. Update the changelog or release notes.
 
 ## Documentation
 
-User-facing docs live in `docs/` and are linked from `README.md`. The app store description is `playwright_browser/DOCS.md`. Keep those in sync with the public action and API shape.
+User-facing docs live in `docs/` and are linked from `README.md`. The app listing description is `playwright_cli/DOCS.md`. The Marketplace manifest is `hacs.json`; its filename is retained for Marketplace compatibility. Keep these in sync with the public action and API shape.
 
 - `docs/installation.md` — install order and discovery.
 - `docs/usage.md` — CLI behavior, sessions, config, and paths.

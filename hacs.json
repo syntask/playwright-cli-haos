@@ -1,6 +1,6 @@
 {
-  "name": "Playwright Browser",
+  "name": "Playwright CLI",
   "content_in_root": false,
   "render_readme": true,
-  "domains": ["playwright_browser"]
+  "domains": ["playwright_cli"]
 }

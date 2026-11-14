@@ -1,4 +1,4 @@
-"""Device control tools contributed by Playwright Browser."""
+"""Device control tools contributed by Playwright CLI."""
 
 from __future__ import annotations
 
@@ -16,7 +16,7 @@ class PlaywrightCommandTool(llm.Tool):
     """Execute a playwright-cli command line exactly as written."""
 
     name = f"{DOMAIN}__command"
-    title = "Run a Playwright browser command"
+    title = "Run a Playwright CLI command"
     description = (
         "Run one playwright-cli command line, exactly like the terminal. Use normal CLI syntax, "
         "including the session selector and options: '-s=kitchen open https://example.com', "
@@ -46,7 +46,7 @@ class PlaywrightCommandTool(llm.Tool):
         del llm_context
         config_entries = hass.config_entries.async_entries(DOMAIN)
         if not config_entries:
-            return llm.ToolResult(data={"error": "Playwright Browser is not configured"}, error=True)
+            return llm.ToolResult(data={"error": "Playwright CLI is not configured"}, error=True)
         entry = config_entries[0]
         api: PlaywrightApi = hass.data[DOMAIN][entry.entry_id]["api"]
         command = tool_input.tool_args.get("command")
@@ -70,7 +70,7 @@ class PlaywrightEventsTool(llm.Tool):
     """Read browser and command events observed by the app."""
 
     name = f"{DOMAIN}__events"
-    title = "Read Playwright browser events"
+    title = "Read Playwright CLI events"
     description = (
         "Read recent Playwright CLI command results and browser page, console, network, dialog, "
         "download, worker, and WebSocket events. Pass back the returned instance_id and sequence "
@@ -101,7 +101,7 @@ class PlaywrightEventsTool(llm.Tool):
         del llm_context
         config_entries = hass.config_entries.async_entries(DOMAIN)
         if not config_entries:
-            return llm.ToolResult(data={"error": "Playwright Browser is not configured"}, error=True)
+            return llm.ToolResult(data={"error": "Playwright CLI is not configured"}, error=True)
         entry = config_entries[0]
         api: PlaywrightApi = hass.data[DOMAIN][entry.entry_id]["api"]
         args = tool_input.tool_args
@@ -128,11 +128,11 @@ def async_get_tools(
     return llm.LLMTools(
         tools=[PlaywrightCommandTool(), PlaywrightEventsTool()],
         prompt=(
-            "Use playwright_browser__command with a complete playwright-cli command line, exactly "
+            "Use playwright_cli__command with a complete playwright-cli command line, exactly "
             "as you would type it in a terminal. Include the session selector when you want a named "
             "session, for example '-s=kitchen open https://example.com', then '-s=kitchen snapshot'. "
             "Add --json to get structured output. Use '--help' to discover commands. Use "
-            "playwright_browser__events to read command and browser events. Do not include a shell; "
+            "playwright_cli__events to read command and browser events. Do not include a shell; "
             "pipes, redirects, and command chaining are not available. Do not assume a page action "
             "succeeded unless its result confirms it."
         ),

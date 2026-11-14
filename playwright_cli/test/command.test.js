@@ -78,7 +78,7 @@ test("rejects malformed command lines", () => {
 });
 
 test("installs the default CLI config once", async () => {
-  const directory = await mkdtemp(join(tmpdir(), "playwright-ha-test-"));
+  const directory = await mkdtemp(join(tmpdir(), "playwright-cli-test-"));
   try {
     const path = await ensureDefaultConfig(directory);
     const config = JSON.parse(await readFile(path, "utf8"));

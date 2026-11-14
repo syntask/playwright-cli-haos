@@ -1,4 +1,4 @@
-# Playwright Browser app
+# Playwright CLI app
 
 This app bundles [Microsoft Playwright CLI](https://github.com/microsoft/playwright-cli) and Chromium, then exposes an authenticated command API to the companion Home Assistant integration.
 
@@ -6,18 +6,18 @@ It is a thin command-layer port: commands are complete `playwright-cli` lines. T
 
 Full user documentation lives in the repository:
 
-- [Installation](https://github.com/syntask/playwright-ha-app/blob/main/docs/installation.md)
-- [Usage](https://github.com/syntask/playwright-ha-app/blob/main/docs/usage.md)
-- [Actions and LLM tools](https://github.com/syntask/playwright-ha-app/blob/main/docs/actions.md)
-- [App API](https://github.com/syntask/playwright-ha-app/blob/main/docs/api.md)
-- [Events](https://github.com/syntask/playwright-ha-app/blob/main/docs/events.md)
-- [Security](https://github.com/syntask/playwright-ha-app/blob/main/docs/security.md)
+- [Installation](https://github.com/syntask/playwright-cli-haos/blob/main/docs/installation.md)
+- [Usage](https://github.com/syntask/playwright-cli-haos/blob/main/docs/usage.md)
+- [Actions and LLM tools](https://github.com/syntask/playwright-cli-haos/blob/main/docs/actions.md)
+- [App API](https://github.com/syntask/playwright-cli-haos/blob/main/docs/api.md)
+- [Events](https://github.com/syntask/playwright-cli-haos/blob/main/docs/events.md)
+- [Security](https://github.com/syntask/playwright-cli-haos/blob/main/docs/security.md)
 
 ## Configuration
 
 Leave **API token** blank to let the app generate a random token on first start. It is saved to `/data/api-token` with mode `0600`. To use an existing token, enter one of at least 32 characters.
 
-The app sends a Supervisor discovery message on startup with its internal hostname, port, and token. Install the companion integration first, then start the app. Home Assistant offers a discovered **Playwright Browser** entry to confirm. If the integration was installed after the app started, restart the app to resend discovery. The app retries discovery for a few minutes if Home Assistant is not ready.
+The app sends a Supervisor discovery message on startup with its internal hostname, port, and token. Install the companion integration from the Marketplace first, then start the app. Home Assistant offers a discovered **Playwright CLI** entry to confirm. If the integration was installed after the app started, restart the app to resend discovery. The app retries discovery for a few minutes if Home Assistant is not ready.
 
 The API listens on port `8080` inside the Home Assistant app network. The port is not published on the host by default.
 
@@ -48,20 +48,20 @@ You can edit the file, override it per command with `--config=/data/other.json`,
 Run a command through the integration:
 
 ```yaml
-action: playwright_browser.run_command
+action: playwright_cli.run_command
 data:
   command: -s=kitchen open https://example.com
 ```
 
 ```yaml
-action: playwright_browser.run_command
+action: playwright_cli.run_command
 data:
   command: -s=kitchen snapshot --json
 ```
 
 Sessions use Playwright's `-s=<name>` selector. Omit it for the default session. Sessions end when the app restarts. Add `--persistent` or `--profile=/data/...` to keep profile data across browser restarts.
 
-Screenshots and other files are written under `/data/.playwright-cli/`. Use `playwright_browser.save_artifact` to copy one into Home Assistant's private artifact store and get a signed URL for notifications.
+Screenshots and other files are written under `/data/.playwright-cli/`. Use `playwright_cli.save_artifact` to copy one into Home Assistant's private artifact store and get a signed URL for notifications.
 
 ## API
 

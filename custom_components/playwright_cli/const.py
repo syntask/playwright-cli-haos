@@ -1,4 +1,4 @@
-DOMAIN = "playwright_browser"
+DOMAIN = "playwright_cli"
 CONF_HOST = "host"
 CONF_API_TOKEN = "api_token"
 DEFAULT_HOST = ""

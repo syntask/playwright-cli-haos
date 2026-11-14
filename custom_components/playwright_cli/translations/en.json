@@ -2,7 +2,7 @@
   "config": {
     "step": {
       "user": {
-        "title": "Connect to Playwright Browser",
+        "title": "Connect to Playwright CLI",
         "description": "Enter the app's API URL and API token. Leave the token blank in the app options to use an automatically generated token.",
         "data": {
           "host": "App URL",
@@ -10,16 +10,16 @@
         }
       },
       "hassio_confirm": {
-        "title": "Discovered Playwright Browser",
-        "description": "The Playwright Browser app was discovered. Submit to connect automatically."
+        "title": "Discovered Playwright CLI",
+        "description": "The Playwright CLI app was discovered. Submit to connect automatically."
       }
     },
     "error": {
       "cannot_connect": "Cannot connect or authenticate with the app. Check the URL, token, and app logs."
     },
     "abort": {
-      "already_configured": "Playwright Browser is already configured.",
-      "cannot_connect": "Discovered Playwright Browser, but could not connect or authenticate.",
+      "already_configured": "Playwright CLI is already configured.",
+      "cannot_connect": "Discovered Playwright CLI, but could not connect or authenticate.",
       "invalid_discovery": "The app's discovery message was missing its host or token."
     }
   }

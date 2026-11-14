@@ -15,7 +15,7 @@ The token is the app option, or `/data/api-token` when the option is blank.
 Unauthenticated health check used by the Supervisor watchdog.
 
 ```json
-{ "ok": true, "service": "playwright-ha-app" }
+{ "ok": true, "service": "playwright-cli-haos" }
 ```
 
 ## `POST /api/v1/command`
@@ -195,7 +195,7 @@ Send the bearer token in the `Authorization` header; the WebSocket handshake rej
 
 ```sh
 TOKEN='...'
-BASE='http://playwright-browser:8080'
+BASE='http://playwright-cli:8080'
 
 curl -s "$BASE/health"
 

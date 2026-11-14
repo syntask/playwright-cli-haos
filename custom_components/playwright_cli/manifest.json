@@ -1,10 +1,10 @@
 {
-  "domain": "playwright_browser",
-  "name": "Playwright Browser",
+  "domain": "playwright_cli",
+  "name": "Playwright CLI",
   "codeowners": ["@syntask"],
   "config_flow": true,
   "dependencies": ["http"],
-  "documentation": "https://github.com/syntask/playwright-ha-app",
+  "documentation": "https://github.com/syntask/playwright-cli-haos",
   "iot_class": "local_push",
   "requirements": [],
   "version": "0.1.0"

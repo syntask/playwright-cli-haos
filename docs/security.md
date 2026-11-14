@@ -1,6 +1,6 @@
 # Security
 
-Playwright Browser controls a real browser and can execute arbitrary code. Treat access to the action, LLM tools, and API token as equivalent to shell access inside the app container.
+Playwright CLI controls a real browser and can execute arbitrary code. Treat access to the action, LLM tools, and API token as equivalent to shell access inside the app container.
 
 ## Trust boundaries
 
@@ -45,7 +45,7 @@ They are not sandboxed beyond the container itself. Only expose the command tool
 CLI artifacts are written under `/data/.playwright-cli` inside the app.
 
 - `get_artifact` returns base64 bytes over the authenticated API. It does not create a URL.
-- `save_artifact` copies a file into `/config/.playwright_browser/artifacts` and returns a signed Home Assistant URL.
+- `save_artifact` copies a file into `/config/.playwright_cli/artifacts` and returns a signed Home Assistant URL.
 - Signed URLs are valid for 30 days or until Home Assistant restarts.
 - Artifacts are not placed in `www` or served through `/local`.
 - Destination paths must be relative and use only letters, numbers, dots, dashes, and underscores.
@@ -66,7 +66,7 @@ Use separate sessions for separate trust levels:
 Use `delete-data` to wipe a session profile:
 
 ```yaml
-action: playwright_browser.run_command
+action: playwright_cli.run_command
 data:
   command: -s=banking delete-data
 ```

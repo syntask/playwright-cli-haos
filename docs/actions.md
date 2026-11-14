@@ -2,7 +2,7 @@
 
 The integration registers three actions and two LLM tools. It does not create entities or devices.
 
-## `playwright_browser.run_command`
+## `playwright_cli.run_command`
 
 Run one complete `playwright-cli` command line.
 
@@ -11,7 +11,7 @@ Run one complete `playwright-cli` command line.
 | `command` | yes | Full CLI line, including optional `-s=<session>` and options. |
 
 ```yaml
-action: playwright_browser.run_command
+action: playwright_cli.run_command
 data:
   command: -s=kitchen open https://example.com
 ```
@@ -19,7 +19,7 @@ data:
 Supports `response_variable`:
 
 ```yaml
-action: playwright_browser.run_command
+action: playwright_cli.run_command
 response_variable: result
 data:
   command: -s=kitchen snapshot --json
@@ -40,16 +40,16 @@ event:
 
 A failed command returns `ok: false`, the CLI's `stderr`, and an HTTP-style error result. The action raises a Home Assistant error when the app cannot be reached or rejects the request shape.
 
-The integration also fires a `playwright_browser_command` event on the Home Assistant event bus:
+The integration also fires a `playwright_cli_command` event on the Home Assistant event bus:
 
 ```yaml
-event_type: playwright_browser_command
+event_type: playwright_cli_command
 data:
   command: -s=kitchen snapshot --json
   success: true
 ```
 
-## `playwright_browser.get_artifact`
+## `playwright_cli.get_artifact`
 
 Read a file from the app's `.playwright-cli/` directory and return its bytes as base64.
 
@@ -58,7 +58,7 @@ Read a file from the app's `.playwright-cli/` directory and return its bytes as 
 | `path` | yes | Relative path reported by the CLI, for example `.playwright-cli/page.png`. |
 
 ```yaml
-action: playwright_browser.get_artifact
+action: playwright_cli.get_artifact
 response_variable: artifact
 data:
   path: .playwright-cli/kitchen.png
@@ -68,7 +68,7 @@ The response contains `name`, `content_type`, `bytes`, and `data_base64`. This a
 
 The app rejects paths outside `.playwright-cli` and files larger than 20 MiB.
 
-## `playwright_browser.save_artifact`
+## `playwright_cli.save_artifact`
 
 Copy an app artifact into Home Assistant's private artifact store and return a signed URL.
 
@@ -78,7 +78,7 @@ Copy an app artifact into Home Assistant's private artifact store and return a s
 | `destination` | yes | Relative path in the private store, for example `playwright/kitchen.png`. |
 
 ```yaml
-action: playwright_browser.save_artifact
+action: playwright_cli.save_artifact
 response_variable: saved
 data:
   path: .playwright-cli/kitchen.png
@@ -88,7 +88,7 @@ data:
 The response looks like:
 
 ```yaml
-url: /api/playwright_browser/artifact/playwright/kitchen.png?authSig=...
+url: /api/playwright_cli/artifact/playwright/kitchen.png?authSig=...
 destination: playwright/kitchen.png
 bytes: 48213
 content_type: image/png
@@ -97,7 +97,7 @@ expires_in: 2592000
 
 The URL requires Home Assistant authentication unless it is used with its signature. It works in persistent notifications, dashboards, and other Home Assistant surfaces that can fetch a Home Assistant URL.
 
-The signed URL is valid for 30 days or until Home Assistant restarts. Artifacts are stored under `/config/.playwright_browser/artifacts`, not in `www` or `/local`.
+The signed URL is valid for 30 days or until Home Assistant restarts. Artifacts are stored under `/config/.playwright_cli/artifacts`, not in `www` or `/local`.
 
 Destinations must be relative and may only contain letters, numbers, dots, dashes, and underscores.
 
@@ -105,15 +105,15 @@ Destinations must be relative and may only contain letters, numbers, dots, dashe
 
 ```yaml
 action:
-  - action: playwright_browser.run_command
+  - action: playwright_cli.run_command
     data:
       command: -s=kitchen open https://demo.playwright.dev/todomvc
 
-  - action: playwright_browser.run_command
+  - action: playwright_cli.run_command
     data:
       command: -s=kitchen screenshot --filename=.playwright-cli/kitchen.png
 
-  - action: playwright_browser.save_artifact
+  - action: playwright_cli.save_artifact
     data:
       path: .playwright-cli/kitchen.png
       destination: playwright/kitchen.png
@@ -133,7 +133,7 @@ action:
 
 The integration contributes tools to the Assist **Device control** API. They are not exposed through the admin LLM API.
 
-### `playwright_browser__command`
+### `playwright_cli__command`
 
 Runs a complete CLI line. The tool has one parameter:
 
@@ -151,7 +151,7 @@ Example model inputs:
 -s=weather click e7
 ```
 
-### `playwright_browser__events`
+### `playwright_cli__events`
 
 Reads command and browser events observed by the app.
 

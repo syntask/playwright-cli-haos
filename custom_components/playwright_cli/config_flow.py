@@ -1,4 +1,4 @@
-"""Config flow for Playwright Browser."""
+"""Config flow for Playwright CLI."""
 
 from __future__ import annotations
 
@@ -15,7 +15,7 @@ from .api import PlaywrightApi, PlaywrightApiError
 from .const import CONF_API_TOKEN, DEFAULT_HOST, DOMAIN
 
 
-class PlaywrightBrowserConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
+class PlaywrightCliConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     """Set up a connection to the app API."""
 
     VERSION = 1
@@ -49,7 +49,7 @@ class PlaywrightBrowserConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         """Confirm the discovered app."""
         if user_input is not None:
             return self.async_create_entry(
-                title="Playwright Browser",
+                title="Playwright CLI",
                 data=self._discovered_data,
             )
         return self.async_show_form(step_id="hassio_confirm")
@@ -67,7 +67,7 @@ class PlaywrightBrowserConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 await self.async_set_unique_id(DOMAIN)
                 self._abort_if_unique_id_configured()
                 return self.async_create_entry(
-                    title="Playwright Browser", data={CONF_HOST: host, CONF_API_TOKEN: token}
+                    title="Playwright CLI", data={CONF_HOST: host, CONF_API_TOKEN: token}
                 )
 
         schema = vol.Schema(

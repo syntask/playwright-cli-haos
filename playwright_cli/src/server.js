@@ -133,14 +133,14 @@ async function sendDiscovery() {
       headers,
       signal: AbortSignal.timeout(5000),
       body: JSON.stringify({
-        service: "playwright_browser",
+        service: "playwright_cli",
         config: { host: appHost, port: String(PORT), token: TOKEN },
       }),
     });
     if (!response.ok) throw new Error(`${response.status} ${await response.text()}`);
     const result = await response.json().catch(() => ({}));
     discoverySent = true;
-    console.info(`Sent Playwright Browser discovery${result.uuid ? ` (${result.uuid})` : ""}`);
+    console.info(`Sent Playwright CLI discovery${result.uuid ? ` (${result.uuid})` : ""}`);
   } catch (error) {
     console.warn(`Could not send discovery to Home Assistant: ${error.message}`);
     if (discoveryAttempts < 5 && !shuttingDown) {
@@ -378,7 +378,7 @@ async function withCommandLock(operation) {
 const server = createServer(async (request, response) => {
   const url = new URL(request.url || "/", `http://${request.headers.host || "localhost"}`);
   if (request.method === "GET" && url.pathname === "/health") {
-    return send(response, 200, { ok: true, service: "playwright-ha-app" });
+    return send(response, 200, { ok: true, service: "playwright-cli-haos" });
   }
   if (!url.pathname.startsWith("/api/v1/")) return send(response, 404, { error: "not_found" });
   if (!authorized(request)) return send(response, 401, { error: "unauthorized" });

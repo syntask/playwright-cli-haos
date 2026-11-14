@@ -1,11 +1,11 @@
 {
-  "name": "playwright-ha-app",
+  "name": "playwright-cli-haos",
   "version": "0.1.0",
   "private": true,
   "author": "Syntask",
   "repository": {
     "type": "git",
-    "url": "https://github.com/syntask/playwright-ha-app.git"
+    "url": "https://github.com/syntask/playwright-cli-haos.git"
   },
   "type": "module",
   "scripts": {

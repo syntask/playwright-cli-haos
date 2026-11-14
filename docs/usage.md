@@ -1,9 +1,9 @@
 # Usage
 
-`playwright_browser.run_command` sends one complete `playwright-cli` command line to the app:
+`playwright_cli.run_command` sends one complete `playwright-cli` command line to the app:
 
 ```yaml
-action: playwright_browser.run_command
+action: playwright_cli.run_command
 data:
   command: -s=kitchen open https://example.com
 ```
@@ -90,7 +90,7 @@ data:
 Sessions live inside the app container and end when the app restarts. Listing sessions:
 
 ```yaml
-action: playwright_browser.run_command
+action: playwright_cli.run_command
 response_variable: sessions
 data:
   command: list --json
@@ -177,7 +177,7 @@ There is no hard maximum lifetime. A session that keeps receiving commands stays
 Add `--json` when an automation or LLM needs parseable output:
 
 ```yaml
-action: playwright_browser.run_command
+action: playwright_cli.run_command
 response_variable: page
 data:
   command: -s=kitchen snapshot --json
@@ -199,20 +199,20 @@ Without `--json`, output is the CLI's normal text. The app does not parse or ref
 
 ```yaml
 action:
-  - action: playwright_browser.run_command
+  - action: playwright_cli.run_command
     data:
       command: -s=kitchen open https://demo.playwright.dev/todomvc
 
-  - action: playwright_browser.run_command
+  - action: playwright_cli.run_command
     response_variable: page
     data:
       command: -s=kitchen snapshot --json
 
-  - action: playwright_browser.run_command
+  - action: playwright_cli.run_command
     data:
       command: -s=kitchen fill e2 "Buy milk"
 
-  - action: playwright_browser.run_command
+  - action: playwright_cli.run_command
     data:
       command: -s=kitchen press Enter
 ```
@@ -225,7 +225,7 @@ Element refs such as `e2` come from the latest `snapshot`.
 command: -s=kitchen screenshot --filename=.playwright-cli/kitchen.png
 ```
 
-The CLI prints the file path. Save it to a private Home Assistant URL with `playwright_browser.save_artifact`; see [Actions and LLM tools](actions.md).
+The CLI prints the file path. Save it to a private Home Assistant URL with `playwright_cli.save_artifact`; see [Actions and LLM tools](actions.md).
 
 ### PDF
 
@@ -306,7 +306,7 @@ LAN addresses and public sites work if the app can reach them.
 For `playwright-cli` command details, run:
 
 ```yaml
-action: playwright_browser.run_command
+action: playwright_cli.run_command
 data:
   command: --help
 ```

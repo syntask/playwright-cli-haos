@@ -17,7 +17,7 @@ Every command emits:
 
 Command events contain the complete command line, the result, and a timestamp. They do not require a browser session and work for `list`, `--help`, `--version`, ephemeral sessions, and failed commands.
 
-Read them with the `playwright_browser__events` LLM tool or `GET /api/v1/events`.
+Read them with the `playwright_cli__events` LLM tool or `GET /api/v1/events`.
 
 ## Browser events
 
@@ -48,7 +48,7 @@ An ephemeral Playwright session does not report a profile directory. Without a p
 To get browser events, open the session with `--persistent` or `--profile`:
 
 ```yaml
-action: playwright_browser.run_command
+action: playwright_cli.run_command
 data:
   command: -s=kitchen open https://example.com --persistent
 ```
@@ -89,13 +89,13 @@ Events are not a substitute for command output. If you need a reliable value, re
 ### LLM tool
 
 ```text
-playwright_browser__events with {"after": 0, "limit": 20}
+playwright_cli__events with {"after": 0, "limit": 20}
 ```
 
 Then continue with the returned cursor:
 
 ```text
-playwright_browser__events with {"after": 12, "limit": 20, "instance_id": "…"}
+playwright_cli__events with {"after": 12, "limit": 20, "instance_id": "…"}
 ```
 
 ### HTTP
@@ -128,16 +128,16 @@ The socket sends a `ready` frame, then `playwright_event` frames as events occur
 
 ```yaml
 action:
-  - action: playwright_browser.run_command
+  - action: playwright_cli.run_command
     data:
       command: -s=kitchen open https://example.com --persistent
 
   - delay: "00:00:05"
 
-  - action: playwright_browser.run_command
+  - action: playwright_cli.run_command
     response_variable: events
     data:
       command: -s=kitchen console
 ```
 
-For an event-driven flow, call `playwright_browser__events` with the cursor from the previous call.
+For an event-driven flow, call `playwright_cli__events` with the cursor from the previous call.
