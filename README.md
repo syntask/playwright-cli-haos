@@ -29,7 +29,7 @@ This tool exists in two parts, an app and an integration that work together:
 [![Open your Home Assistant instance and open this repository in the Marketplace.](https://my.home-assistant.io/badges/marketplace_repository.svg)](https://my.home-assistant.io/redirect/marketplace_repository/?owner=syntask&repository=playwright-cli-haos&category=integration)
 [![Open your Home Assistant instance and add this app repository.](https://my.home-assistant.io/badges/supervisor_add_addon_repository.svg)](https://my.home-assistant.io/redirect/supervisor_add_addon_repository/?repository_url=https%3A%2F%2Fgithub.com%2Fsyntask%2Fplaywright-cli-haos)
 
-Playwright CLI has two parts that are installed separately:
+Requires Home Assistant 2026.11 or newer on Home Assistant OS or Home Assistant Supervised. Playwright CLI has two parts that are installed separately:
 
 1. **Integration** — open the Marketplace button above (or go to **Settings → Marketplace**), add `https://github.com/syntask/playwright-cli-haos` as a custom repository if needed, and install **Playwright CLI**. Restart Home Assistant when prompted.
 2. **App** — open the app repository button above (or go to **Settings → Apps → Install app**, open the ⋮ menu, and choose **Repositories**), add `https://github.com/syntask/playwright-cli-haos`, and install the **Playwright CLI** app.
@@ -105,3 +105,9 @@ Early development: HAOS and Supervised installations are the supported targets. 
 ## Security
 
 Anyone who can call the action or LLM tool can control websites with the browser's saved credentials. `run-code` and `eval` execute arbitrary code inside the app container. Keep the API on the internal Home Assistant network, and configure Assist tool exposure deliberately. See [docs/security.md](docs/security.md).
+
+## License
+
+This project is MIT licensed. The app image bundles Microsoft Playwright CLI (Apache-2.0) and Chromium (BSD-3-Clause and third-party licenses); the complete notices ship with the image. See [LICENSE](LICENSE) and [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+
+Playwright is a trademark of Microsoft Corporation, Chromium and Google are trademarks of Google LLC, and Home Assistant is a trademark of the Open Home Foundation. This project is not affiliated with, sponsored by, or endorsed by any of them.

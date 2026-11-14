@@ -1,0 +1,16 @@
+.git
+.github
+docs
+custom_components
+node_modules
+**/node_modules
+**/__pycache__
+*.py[cod]
+README.md
+CONTRIBUTING.md
+hacs.json
+repository.yaml
+playwright_cli/DOCS.md
+playwright_cli/icon.png
+playwright_cli/logo.png
+playwright_cli/test

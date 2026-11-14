@@ -74,10 +74,19 @@ python -m json.tool custom_components/playwright_cli/translations/en.json >/dev/
 - Do not add fake entities or devices. The integration exists for actions, LLM tools, discovery, and the artifact view.
 - Artifacts must stay private. Do not write them into Home Assistant's `www` directory.
 
+## Validation workflows
+
+GitHub Actions runs two workflows:
+
+- `.github/workflows/validate.yml` runs HACS validation, hassfest, the app tests, and JSON/compile checks on every push, pull request, and nightly schedule.
+- `.github/workflows/publish.yml` builds and pushes the `amd64` and `aarch64` images when a `v*` tag is pushed, or when started manually with a version.
+
+Standard GitHub-hosted runners are free for this public repository.
+
 ## Building the image
 
 ```sh
-docker build -t playwright-cli-haos:local ./playwright_cli
+docker build -f playwright_cli/Dockerfile -t playwright-cli-haos:local .
 ```
 
 Smoke-test the CLI and default config inside the image:
@@ -94,29 +103,37 @@ docker run --rm -v "$(mktemp -d):/data" playwright-cli-haos:local sh -c '
 
 ## Publishing
 
-Images are published manually; this repository does not use GitHub Actions.
+Images are published by `.github/workflows/publish.yml` when a `v*` tag is pushed. The workflow builds `amd64` and `aarch64` with the repository's `GITHUB_TOKEN`, so no personal access token is needed. It can also be started manually from the Actions tab with a version number.
+
+To build and push manually instead:
 
 ```sh
 docker login ghcr.io --username syntask
-docker buildx build --platform linux/amd64 \
+docker buildx build --platform linux/amd64 -f playwright_cli/Dockerfile \
   -t ghcr.io/syntask/playwright-cli-haos-amd64:latest \
   -t ghcr.io/syntask/playwright-cli-haos-amd64:0.1.0 \
-  --push ./playwright_cli
-docker buildx build --platform linux/arm64 \
+  --push .
+docker buildx build --platform linux/arm64 -f playwright_cli/Dockerfile \
   -t ghcr.io/syntask/playwright-cli-haos-aarch64:latest \
   -t ghcr.io/syntask/playwright-cli-haos-aarch64:0.1.0 \
-  --push ./playwright_cli
+  --push .
 ```
 
-Use a GitHub token with package write access for `docker login`. After the first push, make both GHCR packages public so Home Assistant can pull them without credentials.
+Manual pushes need a GitHub token with package write access. After the first publish, make both GHCR packages public so Home Assistant can pull them without credentials.
 
 When releasing:
 
 1. Bump `playwright_cli/config.yaml` version.
 2. Bump `custom_components/playwright_cli/manifest.json` version.
-3. Build and push matching image tags.
-4. Commit, tag, and publish a GitHub release.
-5. Update the changelog or release notes.
+3. Bump `playwright_cli/package.json` version and run `npm install --package-lock-only` in `playwright_cli`.
+4. Commit, tag with the matching `v<version>`, and push the tag.
+5. Wait for the publish workflow to finish and make any new packages public.
+6. Publish a full GitHub release from the tag; a tag alone is not enough.
+7. Update the changelog or release notes.
+
+## Licensing
+
+The project source is MIT licensed in `LICENSE`. The app image bundles Microsoft Playwright (Apache-2.0), Chromium (BSD-3-Clause and third-party licenses), `ws` (MIT), and ffmpeg (LGPL). `THIRD_PARTY_NOTICES.md` summarizes them, and the Dockerfile copies the full upstream texts into `/usr/share/licenses/playwright-cli/`. Do not remove that directory or `/usr/share/doc/` from the image.
 
 ## Documentation
 

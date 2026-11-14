@@ -7,7 +7,7 @@ Playwright CLI has two parts that are installed separately:
 
 Install the integration first so Home Assistant can confirm discovery when the app starts.
 
-Supported target: Home Assistant OS or Home Assistant Supervised. This release does not support a plain Home Assistant Container installation because the app store, Supervisor discovery, and internal app networking are required.
+Requires Home Assistant 2026.11 or newer. Supported target: Home Assistant OS or Home Assistant Supervised. This release does not support a plain Home Assistant Container installation because the app store, Supervisor discovery, and internal app networking are required.
 
 ## Quick install links
 
